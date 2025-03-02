@@ -7,6 +7,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] float moveSpeed = 10f;
     [SerializeField] private Transform feetTransform;
     [SerializeField] private Vector2 groundCheck;
+
     [SerializeField] private LayerMask groundLayer;
 
 
@@ -116,7 +117,6 @@ public class PlayerController : MonoBehaviour
     {
         
         Collider2D isGrounded = Physics2D.OverlapBox(feetTransform.position, groundCheck, 0f, groundLayer);
-        Debug.Log(isGrounded);
         return isGrounded;
     }
 
