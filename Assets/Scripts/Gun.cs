@@ -4,44 +4,91 @@ using UnityEngine;
 
 public class Gun : MonoBehaviour
 {
-
+    //input variables
     Vector2 mousePosition;
 
+
+    //References
     PlayerController playerController;
+    [SerializeField] GameObject bulletPrefab;
+    [SerializeField] Transform shootPointTransform;
 
-    [SerializeField] private GameObject bulletPrefab;
+    //Parameters
+    [SerializeField] float rateOfFire = 0.5f;
+    [SerializeField] int clipSize = 10;
+
+    [SerializeField] float reloadTime = 1f;
 
 
-    [SerializeField] private Transform shootPointTransform;
+    //State
+    bool isReloading = false;
+    int currentClipAmmo;
+    int currentHeldAmmo;
 
-    private void Start()                                                                                {
+    private void Start()
+    {
         playerController = FindFirstObjectByType<PlayerController>();
-        
-                                                                                                        }
+        currentClipAmmo = clipSize;
+        currentHeldAmmo = 20;
+
+    }
 
 
-    
+
 
     private void Update()
     {
         RotateGun();
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            StartCoroutine(Reload());
+        }
 
         if (Input.GetMouseButtonDown(0))
         {
-            Shoot();
+            StartCoroutine(ShootCoroutine());
         }
+    }
+
+    IEnumerator ShootCoroutine()
+    {
+        Shoot();
+        yield return new WaitForSeconds(rateOfFire);
     }
 
     public void Shoot()
     {
-        GameObject bullet = Instantiate(bulletPrefab, shootPointTransform.position, transform.rotation);
-        if(bullet.TryGetComponent(out Bullet bulletComponent))
+        if(!isReloading && currentClipAmmo > 0)
         {
-            bulletComponent.Init();
+            currentClipAmmo--;
+            GameObject bullet = Instantiate(bulletPrefab, shootPointTransform.position, transform.rotation);
+            if (bullet.TryGetComponent(out Bullet bulletComponent))
+            {
+                bulletComponent.Init();
+            }
+            
         }
+        else if (currentClipAmmo <= 0)
+        {
+            StartCoroutine(Reload());
+        }
+
+        //add object pooling
+
 
     }
 
+
+    IEnumerator Reload()
+    {
+        isReloading = true;
+        yield return new WaitForSeconds(reloadTime);
+        int ammoNeededToReload = clipSize - currentHeldAmmo;
+        int fileReloadAmount = Mathf.Clamp(currentHeldAmmo - ammoNeededToReload, 0, currentHeldAmmo);
+        currentHeldAmmo -= fileReloadAmount;
+        currentClipAmmo += fileReloadAmount;
+        isReloading = false;
+    }
 
     private void RotateGun()
     {
@@ -49,5 +96,14 @@ public class Gun : MonoBehaviour
         Vector2 direction = playerController.transform.InverseTransformPoint(mousePosition);
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         transform.localRotation = Quaternion.Euler(0, 0, angle);
+    }
+
+    /// <summary>
+    /// This is called from an ammo pickup
+    /// </summary>
+    /// <param name="amount"></param>
+    public void AddAmmo(int amount)
+    {
+        currentHeldAmmo += amount;
     }
 }

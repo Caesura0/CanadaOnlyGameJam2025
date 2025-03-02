@@ -4,30 +4,47 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] float moveSpeed = 10f;
-    [SerializeField] private Transform feetTransform;
-    [SerializeField] private Vector2 groundCheck;
 
-    [SerializeField] private LayerMask groundLayer;
-
-
-    [SerializeField] private float jumpStrength = 7f;
-    [SerializeField] private float extraGravity = 700f;
-    [SerializeField] private float gravityDelay = .2f;
-    [SerializeField] private float coyoteTime = .4f;
-
-    Rigidbody2D rb;
+    //InputControls
     float moveX;
 
+    //parameters
+    [SerializeField] float moveSpeed = 10f;
+    [SerializeField] float jumpStrength = 7f;
+    [SerializeField] float extraGravity = 700f;
+    [SerializeField] float gravityDelay = .2f;
+    [SerializeField] float coyoteTime = .4f;
+    [SerializeField] float holdThreshold = 0.8f;
+    [SerializeField] LayerMask groundLayer;
+    [SerializeField] LayerMask platformLayer;
 
+
+
+
+    //References
+    [SerializeField] private Transform feetTransform;
+    [SerializeField] private Vector2 groundCheck;
+    CapsuleCollider2D playerCollider;
+    Rigidbody2D rb;
+    Gun gun;
+
+
+
+
+    //State
     float timeInAir;
     float timeInCoyoteTime;
     bool doubleJumpAvailable;
     public bool isGrounded;
+    bool isHoldingDown = false;
+    float holdTime = 0f;
+
 
     private void Start()
     {
-        rb = this.GetComponent<Rigidbody2D>();
+        playerCollider = GetComponent<CapsuleCollider2D>();
+        rb = GetComponent<Rigidbody2D>();
+        gun = GetComponentInChildren<Gun>();
     }
 
 
@@ -46,7 +63,24 @@ public class PlayerController : MonoBehaviour
     private void GatherInput()
     {
         moveX = Input.GetAxis("Horizontal");
-    }
+
+        if (Input.GetKey(KeyCode.S))
+        {
+            holdTime += Time.deltaTime;
+            if (!isHoldingDown && holdTime >= holdThreshold)
+            {
+                isHoldingDown = true;
+                StartCoroutine(DisableCollision());
+            }
+        }
+        else
+        {
+            holdTime = 0f;
+            isHoldingDown = false;
+        }
+    
+
+}
 
     private void FixedUpdate()
     {
@@ -58,8 +92,6 @@ public class PlayerController : MonoBehaviour
     {
         Vector2 movement = new Vector2(moveX * moveSpeed, rb.velocity.y);
         rb.velocity = movement;
-
-
     }
 
     void ApplyJumpForce()
@@ -159,6 +191,17 @@ public class PlayerController : MonoBehaviour
         else
         {
             timeInCoyoteTime -= Time.deltaTime;
+        }
+    }
+
+    IEnumerator DisableCollision()
+    {
+        Collider2D platform = Physics2D.OverlapCircle( feetTransform.position, 1f, platformLayer);
+        if (platform != null)
+        {
+            Physics2D.IgnoreCollision(playerCollider, platform, true);
+            yield return new WaitForSeconds(1f);
+            Physics2D.IgnoreCollision(playerCollider, platform, false);
         }
     }
 
