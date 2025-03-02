@@ -14,11 +14,10 @@ public class Gun : MonoBehaviour
 
     [SerializeField] private Transform shootPointTransform;
 
-    private void Start()
-    {
+    private void Start()                                                                                {
         playerController = FindFirstObjectByType<PlayerController>();
         
-    }
+                                                                                                        }
 
 
     

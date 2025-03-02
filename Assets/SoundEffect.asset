@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ed5fc1cc7d10644885d7ba69a3b4908, type: 3}
+  m_Name: SoundEffect
+  m_EditorClassIdentifier: 
+  boulderSound: {fileID: 0}
+  footstepSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 84c5b4616f77a7c4890e4d9b7065ff20, type: 3}
+  pickupPointsSound: {fileID: 8300000, guid: edfc57486e2ede54ca58948f19102745, type: 3}
+  pickupBigPointsSound: {fileID: 0}
+  pickupSpeedSound: {fileID: 0}
+  jumpSound: {fileID: 0}
+  buttonClick: {fileID: 0}
+  switchButtonClick: {fileID: 0}
+  closeClick: {fileID: 0}
+  invalidClick: {fileID: 0}
+  pauseClick: {fileID: 0}
+  resumeClick: {fileID: 0}
+  changeVolumeClick: {fileID: 0}
+  loseSound: {fileID: 0}
+  winSound: {fileID: 0}
+  lowTimeAlertSound: {fileID: 0}
+  addTimeSound: {fileID: 0}
+  mainMenuMusic: {fileID: 8300000, guid: 45c99a69992cef347b05309a98c9d6a5, type: 3}
+  gameplayMusic: {fileID: 8300000, guid: 18bcf311b05f7bf47a48ace50131b4f2, type: 3}
+  gameEndMusic: {fileID: 8300000, guid: 160a8897ce57bef43b8e08a6d22bb68c, type: 3}
+  scoreScreenMusic: {fileID: 0}
