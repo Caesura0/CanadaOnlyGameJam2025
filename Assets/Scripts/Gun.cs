@@ -14,7 +14,7 @@ public class Gun : MonoBehaviour
     [SerializeField] Transform shootPointTransform;
 
     //Parameters
-    [SerializeField] float rateOfFire = 0.5f;
+    [SerializeField] float rateOfFire = 2f;
     [SerializeField] int clipSize = 10;
 
     [SerializeField] float reloadTime = 1f;
@@ -22,6 +22,7 @@ public class Gun : MonoBehaviour
 
     //State
     bool isReloading = false;
+    bool isShooting = false;
     int currentClipAmmo;
     int currentHeldAmmo;
 
@@ -43,6 +44,7 @@ public class Gun : MonoBehaviour
         {
             StartCoroutine(Reload());
         }
+        if (isShooting || isReloading) return;
 
         if (Input.GetMouseButtonDown(0))
         {
@@ -54,12 +56,14 @@ public class Gun : MonoBehaviour
     {
         Shoot();
         yield return new WaitForSeconds(rateOfFire);
+        isShooting = false;
     }
 
     public void Shoot()
     {
         if(!isReloading && currentClipAmmo > 0)
         {
+            isShooting = true;
             currentClipAmmo--;
             GameObject bullet = Instantiate(bulletPrefab, shootPointTransform.position, transform.rotation);
             if (bullet.TryGetComponent(out Bullet bulletComponent))

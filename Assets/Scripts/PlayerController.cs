@@ -27,7 +27,7 @@ public class PlayerController : MonoBehaviour
     CapsuleCollider2D playerCollider;
     Rigidbody2D rb;
     Gun gun;
-
+    PlayerAnimator playerAnimator;
 
 
 
@@ -45,6 +45,7 @@ public class PlayerController : MonoBehaviour
         playerCollider = GetComponent<CapsuleCollider2D>();
         rb = GetComponent<Rigidbody2D>();
         gun = GetComponentInChildren<Gun>();
+        playerAnimator = GetComponent<PlayerAnimator>();
     }
 
 
@@ -57,7 +58,7 @@ public class PlayerController : MonoBehaviour
         GravityDelay();
         CoyoteTimer();
         isGrounded = IsGrounded();
-
+        playerAnimator.SetIsGrounded(isGrounded);  
     }
 
     private void GatherInput()
@@ -92,6 +93,7 @@ public class PlayerController : MonoBehaviour
     {
         Vector2 movement = new Vector2(moveX * moveSpeed, rb.velocity.y);
         rb.velocity = movement;
+        playerAnimator.SetMovementSpeed(Mathf.Abs(moveX));
     }
 
     void ApplyJumpForce()
@@ -100,6 +102,7 @@ public class PlayerController : MonoBehaviour
         timeInCoyoteTime = 0f;
         rb.velocity = Vector3.zero;
         rb.AddForce(Vector2.up * jumpStrength, ForceMode2D.Impulse);
+        playerAnimator.SetIsJumping(true);
     }
 
     private void HandleSpriteFlip()
@@ -149,6 +152,7 @@ public class PlayerController : MonoBehaviour
     {
         
         Collider2D isGrounded = Physics2D.OverlapBox(feetTransform.position, groundCheck, 0f, groundLayer);
+        playerAnimator.SetIsGrounded(isGrounded);
         return isGrounded;
     }
 
@@ -199,12 +203,17 @@ public class PlayerController : MonoBehaviour
         Collider2D platform = Physics2D.OverlapCircle( feetTransform.position, 1f, platformLayer);
         if (platform != null)
         {
+            playerAnimator.SetIsFalling(true);
+            playerAnimator.SetIsGrounded(false);
             Physics2D.IgnoreCollision(playerCollider, platform, true);
             yield return new WaitForSeconds(1f);
             Physics2D.IgnoreCollision(playerCollider, platform, false);
         }
     }
 
-
+    public void AddAmmo(int addAmmo)
+    {
+        gun.AddAmmo(addAmmo);
+    }
 
 }
