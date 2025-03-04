@@ -147,14 +147,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2835119}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: -0.09810398, w: 0.9951762}
-  m_LocalPosition: {x: 0.48, y: -0.03, z: 0}
+  m_LocalRotation: {x: 0, y: 0, z: -0.21427502, w: 0.9767734}
+  m_LocalPosition: {x: 0.48000002, y: -0.03000009, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1885181484}
   m_Father: {fileID: 264610976}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -11.26}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -24.746}
 --- !u!212 &2835121
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -1551,7 +1551,7 @@ Transform:
   m_GameObject: {fileID: 264610975}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.158, y: 1.144, z: 0}
+  m_LocalPosition: {x: 0.082, y: 0.847, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3846,6 +3846,37 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1 &883173275
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 883173276}
+  m_Layer: 0
+  m_Name: DialogueTrigger1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &883173276
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 883173275}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 7.932944, y: 3.50325, z: -0.066235535}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &889665942
 GameObject:
   m_ObjectHideFlags: 0
@@ -7345,7 +7376,7 @@ SpriteRenderer:
   m_SortingLayerID: 725160605
   m_SortingLayer: 3
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: f6008530eaae96c46b856f101b6ff937, type: 3}
+  m_Sprite: {fileID: 1644282780, guid: 1a822e1a2680d0c4db291816501a92ca, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -8811,3 +8842,4 @@ SceneRoots:
   - {fileID: 1924392128}
   - {fileID: 1371481776019449696}
   - {fileID: 147116998}
+  - {fileID: 883173276}
