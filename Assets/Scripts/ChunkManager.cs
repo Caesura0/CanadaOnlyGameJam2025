@@ -1,3 +1,4 @@
+using Cinemachine;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,10 +8,12 @@ public class ChunkManager : MonoBehaviour
     [SerializeField] Transform player;
     [SerializeField] int chunksToSpawn = 3;
     [SerializeField] float chunkLength = 10f;
+    [SerializeField] CinemachineConfiner2D cinemachineConfiner;
 
-    private List<GameObject> activeChunks = new List<GameObject>();
-    private float spawnZ = 0f;
-    private float safeZone = 15f;
+    public List<GameObject> activeChunks = new List<GameObject>();
+    float spawnX = 0f;
+
+    int chunksSpawned;
 
     void Start()
     {
@@ -18,31 +21,64 @@ public class ChunkManager : MonoBehaviour
         {
             SpawnChunk();
         }
+        UpdateBoundary();
     }
 
     void Update()
     {
-        if (player.position.y > spawnZ - (chunksToSpawn * chunkLength))
+        if (player.position.x > spawnX - (chunksToSpawn * chunkLength))
         {
             SpawnChunk();
             RemoveOldChunk();
         }
     }
 
+    
+
     void SpawnChunk()
     {
-        int chunkIndex = Random.Range(0, chunkPrefabs.Count);
-        GameObject chunk = Instantiate(chunkPrefabs[chunkIndex].gameObject, new Vector3(0, spawnZ, 0), Quaternion.identity);
-        activeChunks.Add(chunk);
-        spawnZ += chunkLength;
+        Chunk chunk = ChooseChunkToSpawn();
+
+        GameObject chunkGO = Instantiate(chunk.gameObject, new Vector3(spawnX,0, 0), Quaternion.identity);
+        activeChunks.Add(chunkGO);
+
+        spawnX += chunkLength;
+        chunksSpawned++;
     }
 
+
+    Chunk ChooseChunkToSpawn()
+    {
+        int chunkIndex = Random.Range(0, chunkPrefabs.Count);
+        return chunkPrefabs[chunkIndex];
+    }
     void RemoveOldChunk()
     {
-        if (activeChunks.Count > chunksToSpawn)
+        if (activeChunks.Count > chunksToSpawn + 2)
         {
             Destroy(activeChunks[0]);
             activeChunks.RemoveAt(0);
+            UpdateBoundary(); 
+        }
+    }
+
+
+
+    void UpdateBoundary()
+    {
+        if (activeChunks.Count > 0)
+        {
+            // Get the first chunk and activate its back wall
+            Chunk firstChunk = activeChunks[0].GetComponent<Chunk>();
+            if (firstChunk != null)
+            {
+                firstChunk.SetBoundaryActive(true);
+
+                // Update Cinemachine Confiner
+                cinemachineConfiner.m_BoundingShape2D = firstChunk.GetBoundaryCollider();
+                cinemachineConfiner.InvalidateCache(); // Refresh the confiner
+            }
         }
     }
 }
+

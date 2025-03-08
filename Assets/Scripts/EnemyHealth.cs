@@ -10,6 +10,13 @@ public class EnemyHealth : MonoBehaviour
     int currentHealth;
 
     public static EventHandler OnZombieTranqulized;
+    public static EventHandler OnZombieSpawned;
+
+    private void Start()
+    {
+        currentHealth = 0;
+        OnZombieSpawned?.Invoke(this, EventArgs.Empty);
+    }
 
     public void TakeDamage(int damage)
     {

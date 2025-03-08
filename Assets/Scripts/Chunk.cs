@@ -4,15 +4,20 @@ using UnityEngine;
 
 public class Chunk : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    [SerializeField] Collider2D boundaryCollider;
+
+    private void Awake()
     {
-        
+        SetBoundaryActive(false);
+    }
+    public void SetBoundaryActive(bool isActive)
+    {
+        if (boundaryCollider != null)
+            boundaryCollider.gameObject.SetActive(isActive);
     }
 
-    // Update is called once per frame
-    void Update()
+    public Collider2D GetBoundaryCollider()
     {
-        
+        return boundaryCollider;
     }
 }

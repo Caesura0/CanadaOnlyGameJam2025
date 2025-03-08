@@ -40,16 +40,19 @@ public class Gun : MonoBehaviour
     private void Update()
     {
         RotateGun();
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            StartCoroutine(Reload());
-        }
-        if (isShooting || isReloading) return;
 
-        if (Input.GetMouseButtonDown(0))
-        {
-            StartCoroutine(ShootCoroutine());
-        }
+    }
+
+
+    public void StartReloadCoroutine()
+    { 
+        StartCoroutine(Reload());
+    }
+
+    public void StartShootCoroutine()
+    {
+        if (isShooting || isReloading) return;
+        StartCoroutine(ShootCoroutine());
     }
 
     IEnumerator ShootCoroutine()

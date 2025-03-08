@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -37,6 +38,7 @@ public class PlayerController : MonoBehaviour
     bool doubleJumpAvailable;
     public bool isGrounded;
     bool isHoldingDown = false;
+    bool isDead;
     float holdTime = 0f;
 
 
@@ -46,11 +48,19 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         gun = GetComponentInChildren<Gun>();
         playerAnimator = GetComponent<PlayerAnimator>();
+        PlayerHealth.OnPlayerDeath += PlayerHealth_OnPlayerDeath;
     }
 
+    private void PlayerHealth_OnPlayerDeath(object sender, EventArgs e)
+    {
+        isDead = true;
+        rb.velocity = Vector2.zero;
+        
+    }
 
     private void Update()
     {
+        if (isDead) return;
         GatherInput();
         HandleJump();
         HandleSpriteFlip();
@@ -63,6 +73,8 @@ public class PlayerController : MonoBehaviour
 
     private void GatherInput()
     {
+
+        if (isDead) return;
         moveX = Input.GetAxis("Horizontal");
 
         if (Input.GetKey(KeyCode.S))
@@ -79,9 +91,18 @@ public class PlayerController : MonoBehaviour
             holdTime = 0f;
             isHoldingDown = false;
         }
-    
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            gun.StartReloadCoroutine();
+        }
+        
 
-}
+        if (Input.GetMouseButtonDown(0))
+        {
+            gun.StartShootCoroutine();
+        }
+
+    }
 
     private void FixedUpdate()
     {
