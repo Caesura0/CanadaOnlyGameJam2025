@@ -5,48 +5,30 @@ using UnityEngine;
 public class FlightNodeGenerator : MonoBehaviour
 {
     [Header("Node Generation")]
-    [Tooltip("Parent object to store generated nodes")]
     public Transform nodeContainer;
-
-    [Tooltip("Prefab for flight nodes (must have Node component)")]
     public GameObject nodeTemplate;
-
-    [Tooltip("Distance between flight nodes")]
     public float nodeSpacing = 2f;
-
-    [Tooltip("Vertical distance between flight layers")]
     public float verticalSpacing = 2f;
-
-    [Tooltip("Number of vertical layers")]
     public int verticalLayers = 4;
-
-    [Tooltip("Minimum height above ground")]
     public float minHeightAboveGround = 4f;
 
     [Header("Bounds")]
-    [Tooltip("Use level bounds from NavigationGraph if available")]
     public bool useNavigationGraphBounds = true;
-
-    [Tooltip("Reference to NavigationGraph component")]
     public NavigationGraph navigationGraph;
-
-    [Tooltip("Custom level bounds if not using NavigationGraph")]
     public Bounds customLevelBounds = new Bounds(Vector3.zero, new Vector3(30, 20, 0));
 
     [Header("Connection Settings")]
-    [Tooltip("Maximum distance for node connections")]
-    public float maxConnectionDistance = 8f;
-
-    [Tooltip("Maximum height difference for connections")]
+    public float maxConnectionDistance = 5f;
     public float maxHeightDifference = 5f;
+    [Tooltip("Maximum number of connections per node")]
+    public int maxConnectionsPerNode = 4;
+    [Tooltip("Preference for horizontal connections (higher = more horizontal paths)")]
+    [Range(0.1f, 2f)]
+    public float horizontalPreference = 1.2f;
 
     [Header("Obstacle Avoidance")]
-    [Tooltip("Layers to check for obstacles")]
     public LayerMask obstacleLayer;
-
-    [Tooltip("Radius to check for obstacles")]
     public float obstacleCheckRadius = 1f;
-
     public LayerMask groundLayer;
 
     [Header("Debug")]
@@ -99,7 +81,6 @@ public class FlightNodeGenerator : MonoBehaviour
         if (useNavigationGraphBounds && navigationGraph != null)
         {
             // Get reference to the level bounds from NavigationGraph
-            // Since NavigationGraph calculates bounds internally, we'll recreate the calculation
             Bounds navBounds = CalculateBoundsFromNavigationGraph();
             levelBounds = navBounds;
         }
@@ -115,7 +96,6 @@ public class FlightNodeGenerator : MonoBehaviour
 
     private Bounds CalculateBoundsFromNavigationGraph()
     {
-        // Similar to NavigationGraph.CalculateLevelBounds()
         if (navigationGraph.levelRoot == null)
             return new Bounds(Vector3.zero, Vector3.one * 100);
 
@@ -147,12 +127,8 @@ public class FlightNodeGenerator : MonoBehaviour
     {
         float minX = levelBounds.min.x + nodeSpacing / 2;
         float maxX = levelBounds.max.x - nodeSpacing / 2;
-        float minZ = levelBounds.min.z + nodeSpacing / 2;
-        float maxZ = levelBounds.max.z - nodeSpacing / 2;
-
-        // For 2D games, Z is often 0
-        minZ = 0;
-        maxZ = 0;
+        float minZ = 0;
+        float maxZ = 0;
 
         // Calculate ground height at different positions
         for (float x = minX; x <= maxX; x += nodeSpacing)
@@ -190,7 +166,7 @@ public class FlightNodeGenerator : MonoBehaviour
             new Vector2(position.x, position.y),
             Vector2.down,
             Mathf.Infinity,
-            navigationGraph.groundLayer
+            groundLayer
         );
 
         if (hit.collider != null)
@@ -236,11 +212,21 @@ public class FlightNodeGenerator : MonoBehaviour
         }
     }
 
+    // Helper class for sorting nodes by connection priority
+    private class NodeConnection
+    {
+        public Node node;
+        public float priority;
+    }
+
     private void ConnectNodes()
     {
-        // Connect each node to nearby nodes
+        // Connect each node to nearby nodes with smarter prioritization
         foreach (Node node in generatedNodes)
         {
+            // Collect potential connections with priority scores
+            List<NodeConnection> potentialConnections = new List<NodeConnection>();
+
             foreach (Node otherNode in generatedNodes)
             {
                 if (node == otherNode)
@@ -255,12 +241,47 @@ public class FlightNodeGenerator : MonoBehaviour
                     // Check if line of sight is clear
                     if (IsClearPath(node.transform.position, otherNode.transform.position))
                     {
-                        // Add connection if not already connected
-                        if (!node.connections.Contains(otherNode))
+                        // Calculate connection priority
+                        // Lower = higher priority
+                        float horizontalDistance = Vector2.Distance(
+                            new Vector2(node.transform.position.x, 0),
+                            new Vector2(otherNode.transform.position.x, 0)
+                        );
+
+                        // Prioritize horizontal connections over vertical ones
+                        float priority = distance;
+                        if (horizontalPreference > 1f)
                         {
-                            node.connections.Add(otherNode);
+                            // Apply horizontal preference (reduce priority for horizontal connections)
+                            priority = distance - (horizontalDistance * (horizontalPreference - 1f));
                         }
+
+                        // Additional priority for nodes in the same vertical layer
+                        if (heightDifference < 0.1f)
+                        {
+                            priority *= 0.8f;
+                        }
+
+                        potentialConnections.Add(new NodeConnection
+                        {
+                            node = otherNode,
+                            priority = priority
+                        });
                     }
+                }
+            }
+
+            // Sort by priority (lowest first)
+            potentialConnections.Sort((a, b) => a.priority.CompareTo(b.priority));
+
+            // Connect to the best nodes (limited by maxConnectionsPerNode)
+            int connectionsToMake = Mathf.Min(maxConnectionsPerNode, potentialConnections.Count);
+            for (int i = 0; i < connectionsToMake; i++)
+            {
+                Node targetNode = potentialConnections[i].node;
+                if (!node.connections.Contains(targetNode))
+                {
+                    node.connections.Add(targetNode);
                 }
             }
         }

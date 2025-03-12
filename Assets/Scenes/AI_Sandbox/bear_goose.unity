@@ -181,7 +181,7 @@ MonoBehaviour:
   minSpawnDistance: 6
   coneDirection: 0
   coneAngle: 90
-  minFlyingHeight: 3
+  minFlyingHeight: 4
   maxFlyingHeight: 8
   ensureFlightNodesExist: 1
 --- !u!1001 &306234330
