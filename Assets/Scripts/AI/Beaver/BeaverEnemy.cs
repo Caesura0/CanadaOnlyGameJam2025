@@ -140,16 +140,6 @@ public class SimpleBeaverEnemy : BaseEnemy
         PlaySound(jumpSound);
     }
 
-    // Helper to check if we have a prepare jump animation
-    private bool HasJumpPrepareAnimation()
-    {
-        if (animator == null) return false;
-
-        // Check animator runtimes for a state with PrepareJump transition
-        // This is a simple check - you may need to customize based on your animator setup
-        return animator.HasState(0, Animator.StringToHash("PrepareJump"));
-    }
-
     private void ReturnToWater()
     {
         isUnderwater = true;
@@ -290,7 +280,7 @@ public class SimpleBeaverEnemy : BaseEnemy
         else
         {
             // When no player is detected, pick a random point
-            // Make sure we don't pick the same point we're currently at
+            // Make sure we don't pick the same point we're currently at (unelss we want that?)
             if (jumpPoints.Length > 2)
             {
                 int newIndex = currentJumpPointIndex;
@@ -302,7 +292,7 @@ public class SimpleBeaverEnemy : BaseEnemy
             }
             else
             {
-                // With only 2 points, just switch to the other one
+                // With only 2 points, alternate for now
                 currentJumpPointIndex = (currentJumpPointIndex + 1) % jumpPoints.Length;
             }
         }
