@@ -16,6 +16,8 @@ public class ChunkManager : MonoBehaviour
 
     int chunksSpawned;
 
+
+
     void Start()
     {
         for (int i = 0; i < chunksToSpawn; i++)
@@ -24,6 +26,8 @@ public class ChunkManager : MonoBehaviour
         }
 
     }
+
+
 
     void Update()
     {
@@ -36,7 +40,6 @@ public class ChunkManager : MonoBehaviour
 
     }
 
-    
 
     void SpawnChunk()
     {
@@ -48,7 +51,6 @@ public class ChunkManager : MonoBehaviour
         //cameraConfiner2dCollider.offset = new Vector2(spawnX / 2, 0);
         chunksSpawned++;
     }
-
 
     Chunk ChooseChunkToSpawn()
     {
@@ -87,4 +89,5 @@ public class ChunkManager : MonoBehaviour
         }
     }
 }
+
 
