@@ -12,9 +12,10 @@ GameObject:
   - component: {fileID: 3690760641866489720}
   - component: {fileID: 7928391952742885960}
   - component: {fileID: 990065490110513025}
-  m_Layer: 0
+  - component: {fileID: 2921641239595383197}
+  m_Layer: 9
   m_Name: RaccoonEnemy
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -119,7 +120,7 @@ CapsuleCollider2D:
   m_UsedByEffector: 0
   m_UsedByComposite: 0
   m_Offset: {x: 0, y: -0.25}
-  m_Size: {x: 2.75, y: 1.75}
+  m_Size: {x: 2.75, y: 2}
   m_Direction: 1
 --- !u!114 &990065490110513025
 MonoBehaviour:
@@ -135,9 +136,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   curHealth: 100
-  panicMultiplier: 1
   currentNode: {fileID: 0}
   path: []
   currentState: 0
   player: {fileID: 0}
-  speed: 3
+  speed: 4
+  spriteRenderer: {fileID: 0}
+--- !u!95 &2921641239595383197
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4008378740920057333}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 9268f63d224cb214ca1836701747beb4, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0

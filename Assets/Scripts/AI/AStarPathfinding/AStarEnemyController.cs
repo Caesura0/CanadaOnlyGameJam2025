@@ -31,6 +31,7 @@ public class EnemyController : MonoBehaviour
             spriteRenderer = GetComponent<SpriteRenderer>();
 
         lastPosition = transform.position;
+        player = FindObjectOfType<PlayerController>();
     }
 
     private void Update()

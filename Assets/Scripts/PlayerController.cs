@@ -60,11 +60,11 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         if (isDead) return;
-/*        if (SimpleDialogue.instance.InDialogue) 
-        { 
-            rb.velocity = Vector2.zero; 
-            return; 
-        }*/
+        if (SimpleDialogue.instance.InDialogue)
+        {
+            rb.velocity = Vector2.zero;
+            return;
+        }
         GatherInput();
         HandleJump();
         HandleSpriteFlip();
