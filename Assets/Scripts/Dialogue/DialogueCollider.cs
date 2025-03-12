@@ -4,15 +4,17 @@ using UnityEngine;
 
 public class DialogueCollider : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    DialogueTrigger dialogueTrigger;
+    private void Start()
     {
-        
+        dialogueTrigger = GetComponent<DialogueTrigger>();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void OnTriggerEnter2D(Collider2D collision)
     {
-        
+        if (collision.CompareTag("Player"))
+        {
+            dialogueTrigger.Interact(collision.gameObject);
+        }
     }
 }

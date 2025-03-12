@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
+using DG.Tweening;
 
 public class SimpleDialogue : MonoBehaviour
 {
@@ -30,6 +31,12 @@ public class SimpleDialogue : MonoBehaviour
         {
             instance = this;
         }
+        
+    }
+
+    private void Start()
+    {
+        transform.transform.DOScale(0, .01f);
         gameObject.SetActive(false);
     }
 
@@ -54,6 +61,7 @@ public class SimpleDialogue : MonoBehaviour
 
     public void StartDialogue(Dialogue dialogue, string conversant)
     {
+        AnimateTextBoxOpen();
         InDialogue = true;
         gameObject.SetActive(true);
         index = 0;
@@ -67,7 +75,7 @@ public class SimpleDialogue : MonoBehaviour
             currentDialogue = defaultDialogue;
         }
 
-        conversantName.text = conversant;
+        //conversantName.text = conversant;
         StartCoroutine(TypeLine());
     }
 
@@ -93,12 +101,31 @@ public class SimpleDialogue : MonoBehaviour
             currentDialogue.OnDialogueEnd();
             currentDialogue = null;
             InDialogue = false;
-            gameObject.SetActive(false);
+            AnimateTextBoxClose();
+
         }
     }
 
     IEnumerator Pause()
     {
         yield return new WaitForSeconds(1.5f);  
+    }
+
+
+
+    void AnimateTextBoxOpen()
+    {
+        gameObject.transform.DOScale(1, .25f);
+
+
+    }
+
+    void AnimateTextBoxClose()
+    {
+        gameObject.transform.DOScale(0, .23f).OnComplete(() => {
+            gameObject.SetActive(false);
+            currentDialogue = null;
+            InDialogue = false;
+        });
     }
 }

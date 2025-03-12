@@ -40,8 +40,7 @@ public class PlayerController : MonoBehaviour
     bool isHoldingDown = false;
     bool isDead;
     float holdTime = 0f;
-
-
+    
     private void Start()
     {
         playerCollider = GetComponent<CapsuleCollider2D>();
@@ -61,6 +60,11 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         if (isDead) return;
+        if (SimpleDialogue.instance.InDialogue) 
+        { 
+            rb.velocity = Vector2.zero; 
+            return; 
+        }
         GatherInput();
         HandleJump();
         HandleSpriteFlip();

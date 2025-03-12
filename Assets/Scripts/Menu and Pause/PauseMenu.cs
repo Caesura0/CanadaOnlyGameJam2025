@@ -1,3 +1,4 @@
+using DG.Tweening;
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -7,27 +8,27 @@ public class PauseMenu : MonoBehaviour
     public GameObject pauseMenuUI; // Reference to the pause menu UI GameObject
     private bool isPaused = false; // Flag to track whether the game is paused
 
-    public bool speedUp;
-    [SerializeField] float speedUpSpeed = 4;
     [SerializeField] GameObject gameoverPanel;
 
 
     public static EventHandler OnRestart;
+
+    private void OnEnable()
+    {
+        GetToTheChawper.OnPlayerRescue += OpenGameOverPanel;
+    }
+
+    private void Start()
+    {
+        //pauseMenuUI.transform.DOScale(0, .01f);
+        pauseMenuUI.transform.localScale = Vector3.zero;
+        pauseMenuUI.SetActive(false);
+        isPaused = false;
+    }
     void Update()
     {
 
-        //if (Input.GetKeyDown(KeyCode.Alpha0))
-        //{
-        //    speedUp = !speedUp;
-        //}
-        //if (speedUp)
-        //{
-        //    Time.timeScale = 4;
-        //}
-        //else
-        //{
-        //    Time.timeScale = 2;
-        //}
+
         if (Input.GetKeyDown(KeyCode.Escape) /*&& !GameManager.Instance.GameOver*/)
         {
             if (isPaused)
@@ -46,8 +47,9 @@ public class PauseMenu : MonoBehaviour
 
         Time.timeScale = 0f; // Pause the game by setting time scale to 0
         isPaused = true;
-        Debug.Log(Time.timeScale);
         pauseMenuUI.SetActive(true); // Activate the pause menu UI
+        
+        AnimateTextBoxOpen();
         //AudioManager.Instance.PlayPauseClick();
     }
 
@@ -55,7 +57,8 @@ public class PauseMenu : MonoBehaviour
     {
         Time.timeScale = 1f; // Resume the game by setting time scale to 1
         isPaused = false;
-        pauseMenuUI.SetActive(false); // Deactivate the pause menu UI
+        AnimateTextBoxClose();
+         // Deactivate the pause menu UI
         //AudioManager.Instance.PlayResumeClick();
     }
 
@@ -86,8 +89,37 @@ public class PauseMenu : MonoBehaviour
     {
         //HighscoreTable.Instance.CloseVisual();
     }
+
+    public void OpenGameOverPanel()
+    {
+        AnimateTextBoxOpen();
+        gameoverPanel.SetActive(true);
+    }
     public void CloseGameOverPanel()
     {
         gameoverPanel.SetActive(false);
+    }
+
+
+    void AnimateTextBoxOpen()
+    {
+
+        
+        Debug.Log("open");
+        //pauseMenuUI.transform.localScale = new Vector3(1,1,1);
+
+        pauseMenuUI.transform.DOScale(1, .25f).SetUpdate(true);
+
+
+
+
+    }
+
+    void AnimateTextBoxClose()
+    {
+        Debug.Log("close");
+        pauseMenuUI.transform.DOScale(0, .23f).OnComplete(() => {
+            pauseMenuUI.SetActive(false);
+        });
     }
 }

@@ -23,6 +23,7 @@ public class TimeManager : MonoBehaviour
     private void Update()
     {
         if (isGameOver) return;
+        if(SimpleDialogue.instance.InDialogue) return;
         time += Time.deltaTime;
         timeText.text = "Time: " + time.ToString("F2");
     }

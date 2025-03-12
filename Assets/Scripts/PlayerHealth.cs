@@ -9,7 +9,7 @@ public class PlayerHealth : MonoBehaviour
     int maxHealth = 3;
 
     public static EventHandler OnPlayerDeath;
-
+    bool isDead;
 
 
     [SerializeField] private GameObject heartPrefab;
@@ -32,14 +32,10 @@ public class PlayerHealth : MonoBehaviour
 
     public void Die()
     {
-        //trigger death
+        if(isDead) { return; }
+        isDead = true;
         OnPlayerDeath?.Invoke(this, EventArgs.Empty);
-        //stop player movement
-        //turn off player collider
-        //spawn chopper
-        //wait for chopper to get to player, deactive player visual
-        //chopper flies away
-        //restart game menu
+
     }
 
     void SpawnHearts()
