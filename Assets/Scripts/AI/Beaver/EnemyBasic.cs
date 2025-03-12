@@ -20,7 +20,6 @@ public abstract class BaseEnemy : MonoBehaviour
 
     protected virtual void Start()
     {
-        // Find the player in the scene
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -30,13 +29,11 @@ public abstract class BaseEnemy : MonoBehaviour
 
     protected virtual void Update()
     {
-        // Check if player is within detection range
         if (playerTransform != null)
         {
             bool wasPlayerDetected = playerDetected;
             playerDetected = Vector2.Distance(transform.position, playerTransform.position) < detectionRange;
 
-            // Only call these if detection state changed
             if (playerDetected && !wasPlayerDetected)
             {
                 OnPlayerDetected();
@@ -47,16 +44,14 @@ public abstract class BaseEnemy : MonoBehaviour
             }
         }
 
-        // Update behavior
         UpdateBehavior();
     }
 
-    // Override these in subclasses
+    // Overrides
     protected virtual void OnPlayerDetected() { }
     protected virtual void OnPlayerLost() { }
     protected abstract void UpdateBehavior();
 
-    // Health functionality
     public virtual void TakeDamage(int damage)
     {
         health -= damage;
@@ -71,7 +66,6 @@ public abstract class BaseEnemy : MonoBehaviour
         Destroy(gameObject);
     }
 
-    // Debug visualization
     protected virtual void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;

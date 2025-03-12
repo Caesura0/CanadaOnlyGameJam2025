@@ -15,7 +15,7 @@ public class Node : MonoBehaviour
         return gScore + hScore;
     }
 
-    //use to sanity check connectors
+    // use to sanity check connectors
     private void OnDrawGizmos()
     {
         if (connections.Count > 0)

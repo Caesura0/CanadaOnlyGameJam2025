@@ -41,42 +41,32 @@ public class SimpleBeaverEnemy : BaseEnemy
     {
         base.Start();
 
-        // Make sure we have jump points
         if (jumpPoints == null || jumpPoints.Length == 0)
         {
             Debug.LogError("Beaver needs at least one jump point!");
             return;
         }
 
-        // Start at first jump point
         MoveToCurrentJumpPoint();
 
-        // Hide beaver sprite
         HideBeaver();
 
-        // Create bubble effect
         CreateBubbleEffect();
 
-        // Set next jump time
         SetNextJumpTime();
 
-        // Initialize animator if available
         if (animator != null)
         {
-            // Set initial underwater state
             animator.SetBool("IsUnderwater", true);
         }
     }
 
     protected override void UpdateBehavior()
     {
-        // Check if we should go back underwater
         if (!isUnderwater && rb.velocity.y < 0 && transform.position.y <= currentJumpPoint.position.y)
         {
             ReturnToWater();
         }
-
-        // Check if it's time to jump
         if (isUnderwater && Time.time >= nextJumpTime)
         {
             Jump();
@@ -86,33 +76,22 @@ public class SimpleBeaverEnemy : BaseEnemy
     // Make jumps more frequent when player is detected
     protected override void OnPlayerDetected()
     {
-        // If we're underwater and not about to jump already
         if (isUnderwater && Time.time < nextJumpTime - 0.5f)
         {
-            // Schedule a jump sooner
             nextJumpTime = Time.time + Random.Range(0.2f, 0.7f);
         }
     }
 
     private void Jump()
     {
-        // Don't jump if not underwater
         if (!isUnderwater) return;
-        PerformJump();
-    }
-
-    // Called by animation event when the pre-jump animation completes
-    public void OnJumpAnimationComplete()
-    {
         PerformJump();
     }
 
     private void PerformJump()
     {
-        // Create jump splash effect
         CreateSplashEffect(true);
 
-        // Hide bubble effect during jump
         if (activeBubbleEffect != null)
         {
             Destroy(activeBubbleEffect);
@@ -122,48 +101,36 @@ public class SimpleBeaverEnemy : BaseEnemy
         // Simple vertical jump
         rb.velocity = new Vector2(0, jumpForce);
 
-        // Set as not underwater
         isUnderwater = false;
         rb.gravityScale = 2f; // Normal gravity above water
 
-        // Show beaver sprite
         ShowBeaver();
 
-        // Schedule next jump
         SetNextJumpTime();
 
-        // Trigger the actual jump animation
         if (animator != null)
             animator.SetTrigger("Jump");
 
-        // Play jump sound
+        // Play jump sound?
         PlaySound(jumpSound);
     }
 
     private void ReturnToWater()
     {
         isUnderwater = true;
-        rb.gravityScale = 0.1f; // Minimal gravity underwater for physics stability
+        rb.gravityScale = 0.1f;
 
-        // Create dive splash effect
         CreateSplashEffect(false);
 
-        // Stop movement
         rb.velocity = Vector2.zero;
 
-        // Hide beaver
         HideBeaver();
-
-        // Move to next jump point if we have multiple
         if (jumpPoints.Length > 1)
         {
             MoveToNextJumpPoint();
         }
 
-        // Create new bubble effect
         CreateBubbleEffect();
-
-        // Play splash sound
         PlaySound(splashSound);
     }
 
@@ -174,7 +141,6 @@ public class SimpleBeaverEnemy : BaseEnemy
             spriteRenderer.enabled = true;
         }
 
-        // Set animator state for being visible/above water
         if (animator != null)
         {
             animator.SetBool("IsUnderwater", false);
@@ -188,7 +154,6 @@ public class SimpleBeaverEnemy : BaseEnemy
             spriteRenderer.enabled = false;
         }
 
-        // Set animator state for being hidden/underwater
         if (animator != null)
         {
             animator.SetBool("IsUnderwater", true);
@@ -205,19 +170,16 @@ public class SimpleBeaverEnemy : BaseEnemy
 
     private void CreateSplashEffect(bool isJumping)
     {
-        // Choose the correct splash effect based on whether we're jumping or diving
         GameObject prefab = isJumping ? jumpSplashEffectPrefab : diveSplashEffectPrefab;
 
         if (prefab != null)
         {
-            // Create splash at water level
             GameObject splash = Instantiate(
                 prefab,
                 transform.position,
                 Quaternion.identity
             );
 
-            // Clean up splash after a short time
             Destroy(splash, 1.0f);
         }
     }
@@ -232,7 +194,6 @@ public class SimpleBeaverEnemy : BaseEnemy
                 Quaternion.identity
             );
 
-            // Parent to the current jump point
             if (currentJumpPoint != null)
             {
                 activeBubbleEffect.transform.parent = currentJumpPoint;
@@ -245,7 +206,6 @@ public class SimpleBeaverEnemy : BaseEnemy
         if (jumpPoints == null || jumpPoints.Length == 0 || currentJumpPointIndex >= jumpPoints.Length)
             return;
 
-        // Move to the current jump point
         transform.position = jumpPoints[currentJumpPointIndex].position;
     }
 
@@ -254,7 +214,6 @@ public class SimpleBeaverEnemy : BaseEnemy
         if (jumpPoints == null || jumpPoints.Length <= 1)
             return;
 
-        // Store the previous point index
         int previousPointIndex = currentJumpPointIndex;
 
         if (playerDetected && playerTransform != null)
@@ -317,16 +276,13 @@ public class SimpleBeaverEnemy : BaseEnemy
 
         if (playerDetected)
         {
-            // When player is detected, jump more frequently - use shorter range
             interval = Random.Range(minJumpInterval * 0.5f, maxJumpInterval * 0.5f);
         }
         else
         {
-            // Normal behavior - use full range between min and max
             interval = Random.Range(minJumpInterval, maxJumpInterval);
         }
 
-        // Set the next jump time
         nextJumpTime = Time.time + interval;
 
         if (Debug.isDebugBuild)
@@ -336,7 +292,7 @@ public class SimpleBeaverEnemy : BaseEnemy
         }
     }
 
-    // Override the Die method to show a death animation/effect
+    // Override the Die method to show a death animation/effect?
     protected override void Die()
     {
         // Optional: Add a death effect/animation here

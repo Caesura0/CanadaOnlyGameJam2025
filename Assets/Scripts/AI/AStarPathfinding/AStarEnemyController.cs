@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 public class EnemyController : MonoBehaviour
 {
-    public int maxHealth = 100;
+    public int maxHealth = 3;
     public int curHealth;
     public Node currentNode;
     public List<Node> path = new List<Node>();
@@ -19,23 +19,17 @@ public class EnemyController : MonoBehaviour
     public PlayerController player;
     public float speed = 3f;
 
-    // References for sprite handling
     public SpriteRenderer spriteRenderer;
     private Vector3 lastPosition;
     private Vector3 currentDirection;
-
-    // Optional - if you're using animations instead of sprite flipping
-    // public Animator animator;
 
     private void Start()
     {
         curHealth = maxHealth;
 
-        // If not set in Inspector, find the component
         if (spriteRenderer == null)
             spriteRenderer = GetComponent<SpriteRenderer>();
 
-        // Save initial position to calculate first movement
         lastPosition = transform.position;
     }
 
@@ -105,15 +99,11 @@ public class EnemyController : MonoBehaviour
         {
             int x = 0;
             Vector3 targetPosition = new Vector3(path[x].transform.position.x, path[x].transform.position.y, -2);
-
-            // Store the current position before moving to calculate direction later
             lastPosition = transform.position;
-
-            // Move towards the target
             transform.position = Vector3.MoveTowards(transform.position, targetPosition, speed * Time.deltaTime);
 
-            // Calculate movement direction
-            if (Vector3.Distance(lastPosition, transform.position) > 0.001f) // Only update if we actually moved
+
+            if (Vector3.Distance(lastPosition, transform.position) > 0.001f)
             {
                 currentDirection = (transform.position - lastPosition).normalized;
             }
@@ -128,13 +118,10 @@ public class EnemyController : MonoBehaviour
 
     void UpdateSpriteDirection()
     {
-        // Only update sprite direction if we're actually moving
         if (currentDirection.magnitude > 0.001f)
         {
-            // Simple left/right flipping based on x direction
             if (currentDirection.x != 0)
             {
-                // Flip sprite based on movement direction
                 spriteRenderer.flipX = currentDirection.x < 0;
             }
         }
