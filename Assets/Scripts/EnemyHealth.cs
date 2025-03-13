@@ -6,11 +6,13 @@ using UnityEngine;
 public class EnemyHealth : MonoBehaviour
 {
     [SerializeField] int maxHealth = 3;
-
     int currentHealth;
     bool isTranquilized;
 
-    public static EventHandler OnZombieTranquilized;
+    // Changed from static to instance events
+    public event EventHandler OnZombieTranquilized;
+
+    // Keep this static if you need to track all zombies spawned
     public static EventHandler OnZombieSpawned;
 
     private void Start()
@@ -24,9 +26,10 @@ public class EnemyHealth : MonoBehaviour
         currentHealth = Mathf.Clamp(currentHealth + damage, 0, maxHealth);
         if (currentHealth >= maxHealth)
         {
+            // Use instance event instead of static
             OnZombieTranquilized?.Invoke(this, EventArgs.Empty);
-            //Destroy(gameObject);
-            // zombie is tranqulized
+            Destroy(gameObject);
+            // zombie is tranquilized
         }
     }
 
@@ -34,6 +37,8 @@ public class EnemyHealth : MonoBehaviour
     {
         if (isTranquilized) { return; }
         isTranquilized = true;
+
+        // Use instance event instead of static
         OnZombieTranquilized?.Invoke(this, EventArgs.Empty);
     }
 }

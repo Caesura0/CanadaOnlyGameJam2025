@@ -46,7 +46,12 @@ public class EnemyBaseController : MonoBehaviour
     protected virtual void Start()
     {
 
-        EnemyHealth.OnZombieTranquilized += EnemyHealth_OnZombieTranquilized;
+        // Get the EnemyHealth component and subscribe to its instance event
+        EnemyHealth healthComponent = GetComponent<EnemyHealth>();
+        if (healthComponent != null)
+        {
+            healthComponent.OnZombieTranquilized += EnemyHealth_OnZombieTranquilized;
+        }
         // Get and configure the rigidbody
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
@@ -445,6 +450,15 @@ public class EnemyBaseController : MonoBehaviour
                     Gizmos.DrawSphere(point.position, 0.3f);
                 }
             }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        EnemyHealth healthComponent = GetComponent<EnemyHealth>();
+        if (healthComponent != null)
+        {
+            healthComponent.OnZombieTranquilized -= EnemyHealth_OnZombieTranquilized;
         }
     }
 }
