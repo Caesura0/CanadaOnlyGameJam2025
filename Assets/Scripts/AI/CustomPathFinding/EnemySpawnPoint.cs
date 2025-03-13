@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// New component that defines a spawn point
 public class EnemySpawnPoint : MonoBehaviour
 {
     [Header("Spawn Settings")]
@@ -21,19 +20,15 @@ public class EnemySpawnPoint : MonoBehaviour
     private bool isRespawning = false;
     private Transform playerTransform;
     private NavigationManager navigationManager;
+    private bool hasSpawnedOnce = false; // Track if we've spawned at least once
 
     void Start()
     {
         // Find the navigation manager
         navigationManager = FindObjectOfType<NavigationManager>();
-        if (navigationManager == null)
-        {
-            Debug.LogError("No NavigationManager found in scene!");
-            return;
-        }
 
         // Find the player
-        if (navigationManager.playerTransform != null)
+        if (navigationManager != null && navigationManager.playerTransform != null)
         {
             playerTransform = navigationManager.playerTransform;
         }
@@ -50,25 +45,27 @@ public class EnemySpawnPoint : MonoBehaviour
         if (spawnOnStart)
         {
             SpawnEnemy();
+            hasSpawnedOnce = true;
         }
     }
 
     void Update()
     {
-        // Check if we need to respawn
-        if (spawnedEnemy == null && !isRespawning && respawnAfterDeath)
-        {
-            StartCoroutine(RespawnAfterDelay());
-        }
-
-        // Check activation distance
-        if (playerTransform != null && spawnedEnemy == null && !isRespawning)
+        // FIXED VERSION: Only do proximity check if we haven't spawned yet
+        if (!hasSpawnedOnce && playerTransform != null && spawnedEnemy == null && !isRespawning)
         {
             float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
             if (distanceToPlayer <= activationDistance)
             {
                 SpawnEnemy();
+                hasSpawnedOnce = true;
             }
+        }
+
+        // Only check for respawn if respawnAfterDeath is true
+        if (respawnAfterDeath && spawnedEnemy == null && !isRespawning && hasSpawnedOnce)
+        {
+            StartCoroutine(RespawnAfterDelay());
         }
     }
 
@@ -108,29 +105,21 @@ public class EnemySpawnPoint : MonoBehaviour
         // Set up the enemy based on type
         if (isFlyingEnemy)
         {
-            // If using the flying enemy controllers like GooseController
-            GooseController gooseController = spawnedEnemy.GetComponent<GooseController>();
-            if (gooseController != null)
-            {
-                // GooseController references are set in its Start() method
-                Debug.Log($"Spawned flying enemy {spawnedEnemy.name} at spawn point");
-            }
+            // Flying enemy setup if needed
         }
         else
         {
-            // For ground-based enemies
+            // Try for EnemyBaseController
             EnemyBaseController controller = spawnedEnemy.GetComponent<EnemyBaseController>();
             if (controller != null)
             {
                 controller.navigationGraph = navigationManager.navigationGraph;
                 controller.target = playerTransform;
-                Debug.Log($"Spawned ground enemy {spawnedEnemy.name} at spawn point");
             }
         }
 
         // Subscribe to enemy destruction to handle respawning
         SpawnPointDeathTracker deathTracker = spawnedEnemy.AddComponent<SpawnPointDeathTracker>();
-        deathTracker.spawnPoint = this;
 
         return spawnedEnemy;
     }
@@ -147,42 +136,5 @@ public class EnemySpawnPoint : MonoBehaviour
     public void OnEnemyDestroyed()
     {
         spawnedEnemy = null;
-    }
-
-    // Visualize the spawn point in the editor
-    private void OnDrawGizmos()
-    {
-        // Draw spawn point
-        Gizmos.color = isFlyingEnemy ? Color.blue : Color.red;
-        Gizmos.DrawWireSphere(transform.position, 0.5f);
-
-        // Draw activation radius
-        Gizmos.color = new Color(1f, 1f, 0, 0.3f);
-        Gizmos.DrawWireSphere(transform.position, activationDistance);
-
-        // For flying enemies, visualize the flight height
-        if (isFlyingEnemy)
-        {
-            // Raycast to find ground height
-            RaycastHit2D hit = Physics2D.Raycast(
-                transform.position,
-                Vector2.down,
-                100f,
-                Physics.DefaultRaycastLayers
-            );
-
-            if (hit.collider != null)
-            {
-                Vector3 groundPos = hit.point;
-                Vector3 flyPos = new Vector3(transform.position.x, groundPos.y + flyHeight, transform.position.z);
-
-                // Draw line from ground to flying height
-                Gizmos.color = Color.cyan;
-                Gizmos.DrawLine(groundPos, flyPos);
-
-                // Draw sphere at flying height
-                Gizmos.DrawWireSphere(flyPos, 0.3f);
-            }
-        }
     }
 }

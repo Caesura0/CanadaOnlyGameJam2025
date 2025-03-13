@@ -22,7 +22,7 @@ public class RescueManager : MonoBehaviour
 
     private void OnEnable()
     {
-        EnemyHealth.OnZombieTranqulized += AddRescued;
+        EnemyHealth.OnZombieTranquilized += AddRescued;
     }
 
     private void AddRescued(object sender, EventArgs e)

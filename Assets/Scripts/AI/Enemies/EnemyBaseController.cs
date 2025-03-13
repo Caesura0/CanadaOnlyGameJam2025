@@ -1,5 +1,5 @@
+using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
@@ -28,6 +28,7 @@ public class EnemyBaseController : MonoBehaviour
 
     [Header("State")]
     public EnemyState currentState = EnemyState.Patrol;
+    bool isTranquilized;
 
     // Protected fields accessible to derived classes
     protected Rigidbody2D rb;
@@ -44,6 +45,8 @@ public class EnemyBaseController : MonoBehaviour
 
     protected virtual void Start()
     {
+
+        EnemyHealth.OnZombieTranquilized += EnemyHealth_OnZombieTranquilized;
         // Get and configure the rigidbody
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
@@ -92,12 +95,18 @@ public class EnemyBaseController : MonoBehaviour
             }
         }
 
-        // Start the state machine
         StartStateMachine();
+    }
+
+    private void EnemyHealth_OnZombieTranquilized(object sender, EventArgs e)
+    {
+        isTranquilized = true;
+        rb.velocity = Vector2.zero;
     }
 
     protected virtual void Update()
     {
+        //if (isTranquilized) return;
         UpdateGroundedState();
         UpdatePathfinding();
     }
@@ -390,7 +399,7 @@ public class EnemyBaseController : MonoBehaviour
         {
             if (Vector2.Distance(transform.position, patrolTarget) < 1f)
             {
-                float direction = Mathf.Sign(Random.Range(-1f, 1f));
+                float direction = Mathf.Sign(UnityEngine.Random.Range(-1f, 1f));
                 patrolTarget = startPosition + new Vector2(direction * patrolDistance, 0);
 
                 // Check if the patrol target is over ground

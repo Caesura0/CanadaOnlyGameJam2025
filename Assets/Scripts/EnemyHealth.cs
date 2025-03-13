@@ -8,8 +8,9 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField] int maxHealth = 3;
 
     int currentHealth;
+    bool isTranquilized;
 
-    public static EventHandler OnZombieTranqulized;
+    public static EventHandler OnZombieTranquilized;
     public static EventHandler OnZombieSpawned;
 
     private void Start()
@@ -23,9 +24,16 @@ public class EnemyHealth : MonoBehaviour
         currentHealth = Mathf.Clamp(currentHealth + damage, 0, maxHealth);
         if (currentHealth >= maxHealth)
         {
-            OnZombieTranqulized?.Invoke(this, EventArgs.Empty);
+            OnZombieTranquilized?.Invoke(this, EventArgs.Empty);
             Destroy(gameObject);
             // zombie is tranqulized
         }
+    }
+
+    public void Tranquilize()
+    {
+        if (isTranquilized) { return; }
+        isTranquilized = true;
+        OnZombieTranquilized?.Invoke(this, EventArgs.Empty);
     }
 }
