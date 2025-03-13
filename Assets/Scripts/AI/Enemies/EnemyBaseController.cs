@@ -226,17 +226,12 @@ public class EnemyBaseController : MonoBehaviour
             animator = GetComponentInChildren<Animator>();
         }
 
-        // Try to play turn animation 
         if (animator != null)
         {
             try
             {
                 isFlipping = true;
                 animator.SetTrigger("Turn");
-
-                // NOTE: The actual flip will be called by an Animation Event
-                // Add an event to your Turn animation that calls "OnTurnAnimationFlip"
-
                 // Safety fallback in case animation event doesn't fire
                 StartCoroutine(FlipSafetyFallback());
                 return;
@@ -262,35 +257,22 @@ public class EnemyBaseController : MonoBehaviour
         {
             spriteRenderer.flipX = !facingRight;
         }
-        // Option 2: If using transform scale
-        else
-        {
-            Vector3 currentScale = transform.localScale;
-            if ((currentScale.x > 0 && !facingRight) || (currentScale.x < 0 && facingRight))
-            {
-                currentScale.x *= -1;
-                transform.localScale = currentScale;
-            }
-        }
     }
 
-    // This is called by an Animation Event in your Turn animation
     public void OnTurnAnimationFlip()
     {
         DoFlip(flipToFaceRight);
     }
 
-    // Animation has completed turning
     public void OnTurnAnimationComplete()
     {
         isFlipping = false;
     }
 
-    // Safety fallback if animation event doesn't fire
     protected IEnumerator FlipSafetyFallback()
     {
-        // Wait for animation to complete (adjust based on your animation length)
-        yield return new WaitForSeconds(0.5f);
+        // Wait for anim to complete
+        yield return new WaitForSeconds(0.2f);
 
         // If still flipping, force completion
         if (isFlipping)
@@ -335,11 +317,9 @@ public class EnemyBaseController : MonoBehaviour
 
             float distanceToTarget = Vector2.Distance(transform.position, target.position);
 
-            // Update state based on conditions
             switch (currentState)
             {
                 case EnemyState.Patrol:
-                    // Simple bubble detection - if player enters detection range, chase them
                     if (distanceToTarget <= detectionRange)
                     {
                         Debug.Log($"{gameObject.name} detected player at distance {distanceToTarget}");
@@ -349,8 +329,7 @@ public class EnemyBaseController : MonoBehaviour
                     break;
 
                 case EnemyState.Chase:
-                    // Only stop chasing if player is well outside the lose track range
-                    if (distanceToTarget > loseTrackRange * 1.2f)
+                    if (distanceToTarget > loseTrackRange)
                     {
                         Debug.Log($"{gameObject.name} lost player at distance {distanceToTarget}");
                         SwitchState(EnemyState.Patrol);
@@ -375,13 +354,12 @@ public class EnemyBaseController : MonoBehaviour
             UpdatePatrolTarget();
         }
 
-        // Allow derived classes to override behavior
         OnSwitchState(newState);
 
         Debug.Log($"{gameObject.name} switched to {newState} state");
     }
 
-    // Virtual method for derived classes to override
+    // Overriders
     protected virtual void OnSwitchState(EnemyState newState)
     {
         // Base implementation does nothing

@@ -196,5 +196,5 @@ MonoBehaviour:
   loseTrackRange: 15
   usePatrolPoints: 1
   patrolPoints: []
-  patrolDistance: 3
+  patrolDistance: 1
   currentState: 0
