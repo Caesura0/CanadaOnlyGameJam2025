@@ -1244,6 +1244,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: RaccoonContainer (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 2298804199237058528, guid: a40124dd24bbab74e9121d7324295cf8, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7053401410515344650, guid: a40124dd24bbab74e9121d7324295cf8, type: 3}
       propertyPath: m_LocalPosition.x
       value: -10.97

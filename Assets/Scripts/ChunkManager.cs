@@ -5,6 +5,7 @@ using UnityEngine;
 public class ChunkManager : MonoBehaviour
 {
     [SerializeField] List<Chunk> chunkPrefabs; 
+    [SerializeField] List<Chunk> startingChunkPrefabs; 
     [SerializeField] Transform player;
     [SerializeField] int chunksToSpawn = 3;
     [SerializeField] float chunkLength = 10f;
@@ -20,9 +21,14 @@ public class ChunkManager : MonoBehaviour
 
     void Start()
     {
-        for (int i = 0; i < chunksToSpawn; i++)
+        for (int i = 0; i < 3; i++)
         {
-            SpawnChunk();
+            Chunk chunk = startingChunkPrefabs[i];
+            GameObject chunkGO = Instantiate(chunk.gameObject, new Vector3(spawnX, 0, 0), Quaternion.identity);
+            activeChunks.Add(chunkGO);
+            spawnX += chunkLength;
+
+            chunksSpawned++;
         }
 
     }
@@ -45,7 +51,7 @@ public class ChunkManager : MonoBehaviour
     {
         Chunk chunk = ChooseChunkToSpawn();
 
-        GameObject chunkGO = Instantiate(chunk.gameObject, new Vector3(spawnX,0, 0), Quaternion.identity);
+        GameObject chunkGO = Instantiate(chunk.gameObject, new Vector3(spawnX, 0, 0), Quaternion.identity);
         activeChunks.Add(chunkGO);
         spawnX += chunkLength;
         //cameraConfiner2dCollider.offset = new Vector2(spawnX / 2, 0);

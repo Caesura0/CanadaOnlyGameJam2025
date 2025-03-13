@@ -1270,7 +1270,7 @@ GameObject:
   - component: {fileID: 5476327335591981873}
   - component: {fileID: 7532516648163050182}
   m_Layer: 0
-  m_Name: StartingChunk2
+  m_Name: StartingChunk2 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4155,11 +4155,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6305540250845242349, guid: 91bcfc29c70d328438d124ba97c7cb92, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 21.28
+      value: 23.053385
       objectReference: {fileID: 0}
     - target: {fileID: 6305540250845242349, guid: 91bcfc29c70d328438d124ba97c7cb92, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -4.03
+      value: -3.5974178
       objectReference: {fileID: 0}
     - target: {fileID: 6305540250845242349, guid: 91bcfc29c70d328438d124ba97c7cb92, type: 3}
       propertyPath: m_LocalPosition.z
