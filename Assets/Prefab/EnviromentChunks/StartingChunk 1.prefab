@@ -1404,6 +1404,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4610776032798645972}
+  - component: {fileID: 4301046552744908116}
   m_Layer: 0
   m_Name: BackgroundHolder
   m_TagString: Untagged
@@ -1429,6 +1430,19 @@ Transform:
   - {fileID: 4180869061609524347}
   m_Father: {fileID: 5476327335591981873}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4301046552744908116
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3685838923955025559}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee7a13861cbb30b40a01ee354a5abc63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  parallaxOffset: -0.1
 --- !u!1 &3918629585082292304
 GameObject:
   m_ObjectHideFlags: 0
@@ -2033,6 +2047,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6079436755970182748}
   - component: {fileID: 8468852499226189002}
+  - component: {fileID: 4610610936639287261}
   m_Layer: 6
   m_Name: Water
   m_TagString: Untagged
@@ -2107,6 +2122,19 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &4610610936639287261
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5077877647822174641}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee7a13861cbb30b40a01ee354a5abc63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  parallaxOffset: -0.15
 --- !u!1 &5098469584927757382
 GameObject:
   m_ObjectHideFlags: 0

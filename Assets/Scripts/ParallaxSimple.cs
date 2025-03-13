@@ -22,8 +22,9 @@ public class ParallaxSimple : MonoBehaviour
 
     private void FixedUpdate()
     {
-        Vector2 newPosition = startPos + new Vector2(travel.x * parallaxOffset, 0f);
-        transform.position = new Vector2(newPosition.x, transform.position.y);
+
+        //Vector2 newPosition = startPos + new Vector2(travel.x * parallaxOffset, 0f);
+        //transform.position = new Vector2(newPosition.x, transform.position.y);
     }
 
 

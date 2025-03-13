@@ -25,7 +25,7 @@ public class EnemyHealth : MonoBehaviour
         if (currentHealth >= maxHealth)
         {
             OnZombieTranquilized?.Invoke(this, EventArgs.Empty);
-            Destroy(gameObject);
+            //Destroy(gameObject);
             // zombie is tranqulized
         }
     }
