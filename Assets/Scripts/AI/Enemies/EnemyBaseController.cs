@@ -33,6 +33,18 @@ public class EnemyBaseController : MonoBehaviour
     public float patrolDistance = 8f;        // How far the enemy will patrol if no points
     public enum EnemyState { Patrol, Chase }
 
+    [Header("Collision Damage Settings")]
+    [Tooltip("Whether this enemy deals damage on collision with player")]
+    public bool damageOnCollision = false;
+    [Tooltip("Damage to deal when colliding with player")]
+    public int collisionDamage = 1;
+    [Tooltip("Knockback force to apply to player on collision")]
+    public float knockbackForce = 5f;
+    [Tooltip("Cooldown between collision damage (seconds)")]
+    public float collisionDamageCooldown = 0.5f;
+    [Tooltip("Velocity threshold required to deal collision damage (0 = always)")]
+    public float minDamageVelocity = 0f;
+
     [Header("State")]
     public EnemyState currentState = EnemyState.Patrol;
     bool isTranquilized;
@@ -55,6 +67,10 @@ public class EnemyBaseController : MonoBehaviour
     protected float lastDirectionChangeTime = 0f;
     protected int consecutiveEdgeDetections = 0;
     protected bool atEdge = false;
+
+    // Collision damage state
+    protected float lastDamageTime = 0f;
+    protected bool canDealDamage = true;
 
     protected virtual void Start()
     {
@@ -133,6 +149,12 @@ public class EnemyBaseController : MonoBehaviour
         if (respectEdges)
         {
             CheckForEdges();
+        }
+
+        // Update collision damage cooldown
+        if (!canDealDamage && Time.time > lastDamageTime + collisionDamageCooldown)
+        {
+            canDealDamage = true;
         }
     }
 
@@ -414,6 +436,62 @@ public class EnemyBaseController : MonoBehaviour
         }
     }
 
+    // Handle collision with player
+    protected virtual void OnCollisionEnter2D(Collision2D collision)
+    {
+        // Check if this is set to damage on collision and we hit the player
+        if (damageOnCollision && collision.gameObject.CompareTag("Player"))
+        {
+            // Skip if we can't deal damage yet (cooldown)
+            if (!canDealDamage)
+                return;
+
+            // Check velocity threshold if one is set
+            if (minDamageVelocity > 0)
+            {
+                float collisionVelocity = collision.relativeVelocity.magnitude;
+                if (collisionVelocity < minDamageVelocity)
+                    return;
+            }
+
+            // Get player health component
+            PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
+            if (playerHealth != null)
+            {
+                // Deal damage
+                playerHealth.TakeDamage(collisionDamage);
+
+                // Apply knockback if player has rigidbody
+                Rigidbody2D playerRb = collision.gameObject.GetComponent<Rigidbody2D>();
+                if (playerRb != null && knockbackForce > 0)
+                {
+                    // Calculate knockback direction based on collision point
+                    Vector2 knockbackDir = (collision.transform.position - transform.position).normalized;
+
+                    // Add upward component to prevent pushing player through floors
+                    knockbackDir.y = Mathf.Max(0.3f, knockbackDir.y);
+
+                    // Apply knockback force
+                    playerRb.velocity = Vector2.zero; // Reset velocity first
+                    playerRb.AddForce(knockbackDir * knockbackForce, ForceMode2D.Impulse);
+                }
+
+                // Start cooldown
+                canDealDamage = false;
+                lastDamageTime = Time.time;
+
+                // Callback for derived classes
+                OnPlayerDamaged(collision);
+            }
+        }
+    }
+
+    // Virtual method for derived classes to override for custom behavior on damaging player
+    protected virtual void OnPlayerDamaged(Collision2D collision)
+    {
+        // Base implementation does nothing
+    }
+
     #region State Machine
     protected void StartStateMachine()
     {
@@ -618,6 +696,21 @@ public class EnemyBaseController : MonoBehaviour
 
                 Gizmos.DrawWireSphere(leftCheckPos, 0.1f);
                 Gizmos.DrawWireSphere(rightCheckPos, 0.1f);
+            }
+        }
+
+        // Draw collision damage indicator if enabled
+        if (damageOnCollision)
+        {
+            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+            Collider2D collider = GetComponent<Collider2D>();
+            if (collider != null)
+            {
+                // Draw outline around collider to indicate damage area
+                Vector2 size = collider.bounds.size;
+                Vector2 center = collider.bounds.center;
+
+                Gizmos.DrawWireCube(center, size * 1.05f);
             }
         }
     }

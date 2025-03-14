@@ -181,8 +181,7 @@ public class BearEnemyController : EnemyBaseController
         chargeDirection = new Vector3(facingDirection, 0, 0);
 
         // Flip sprite to face target
-        if ((facingDirection > 0 && !isFacingRight) || (facingDirection < 0 && isFacingRight))
-            FlipSpriteDirectly(isFacingRight);
+        FlipSpriteDirectly(facingDirection > 0);
 
         // Play charge animation
         if (animator != null)
@@ -192,6 +191,12 @@ public class BearEnemyController : EnemyBaseController
 
         // Set charge cooldown
         chargeTimer = chargeCooldown;
+
+        // Enable collision damage during charge
+        damageOnCollision = true;
+        collisionDamage = chargeDamage;
+        knockbackForce = 10f; // Stronger knockback for charge
+        minDamageVelocity = chargeSpeed * 0.5f; // Only damage if moving fast enough
     }
 
     private void HandleChargeMovement()
@@ -229,6 +234,9 @@ public class BearEnemyController : EnemyBaseController
         {
             animator.SetBool("IsCharging", false);
         }
+
+        // Disable collision damage after charge
+        damageOnCollision = false;
     }
 
     private bool DetectWall()
@@ -327,29 +335,14 @@ public class BearEnemyController : EnemyBaseController
         }
     }
 
-    // Handle charge collision with player
-    private void OnCollisionEnter2D(Collision2D collision)
+    // Override the OnPlayerDamaged callback to handle charge-specific behavior
+    protected override void OnPlayerDamaged(Collision2D collision)
     {
-        // Check if we're charging and hit the player
-        if (currentBearAction == BearAction.Charging && collision.gameObject.CompareTag("Player"))
+        base.OnPlayerDamaged(collision);
+
+        // If we hit the player while charging, end the charge
+        if (currentBearAction == BearAction.Charging)
         {
-            Debug.Log("Bear charge hit player!");
-
-            // Get player component and apply damage
-            PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
-            if (playerHealth != null)
-            {
-                playerHealth.TakeDamage(chargeDamage);
-
-                // Knockback player
-  /*              Rigidbody2D playerRb = collision.gameObject.GetComponent<Rigidbody2D>();
-                if (playerRb != null)
-                {
-                    playerRb.AddForce(chargeDirection * 1.5f, ForceMode2D.Impulse);
-                }*/
-            }
-
-            // End charge when we hit player
             EndCharge();
         }
     }
@@ -380,6 +373,9 @@ public class BearEnemyController : EnemyBaseController
                 animator.SetBool("IsCharging", false);
                 animator.ResetTrigger("Swipe");
             }
+
+            // Make sure collision damage is disabled
+            damageOnCollision = false;
         }
     }
 

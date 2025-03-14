@@ -303,6 +303,8 @@ MonoBehaviour:
   rateOfFire: 0.5
   clipSize: 10
   reloadTime: 1
+  currentClipAmmo: 0
+  currentHeldAmmo: 0
 --- !u!1 &8541343207224609960
 GameObject:
   m_ObjectHideFlags: 0
@@ -381,6 +383,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d2794bcb511bc43438e19272a2f6f71a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  invincibilityTime: 1
+  flashDuration: 0.1
+  hitFlashColor: {r: 1, g: 0.3, b: 0.3, a: 0.7}
+  numberOfFlashes: 5
   heartPrefab: {fileID: 3442488325890485035, guid: 428a26509ebc5b6469c7a95cbde1e1c3, type: 3}
   heartHolder: {fileID: 0}
 --- !u!50 &8272690554304749409
