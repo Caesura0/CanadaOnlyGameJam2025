@@ -11,8 +11,11 @@ GameObject:
   - component: {fileID: 6020233275365141316}
   - component: {fileID: 5522913835302370593}
   - component: {fileID: 4091725713025771606}
-  - component: {fileID: 7839658426008644319}
   - component: {fileID: 2866502897095981188}
+  - component: {fileID: 3186575674122852302}
+  - component: {fileID: 4523241095760354943}
+  - component: {fileID: 8826843337890892731}
+  - component: {fileID: -1927168607175590858}
   m_Layer: 9
   m_Name: GooseEnemy
   m_TagString: Enemy
@@ -122,39 +125,6 @@ CircleCollider2D:
   m_Offset: {x: 0, y: 0}
   serializedVersion: 2
   m_Radius: 1
---- !u!114 &7839658426008644319
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2658086076921413172}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 320bec59a4f3993458fa9ece3174cd67, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  aStarManager: {fileID: 0}
-  playerTransform: {fileID: 0}
-  detectionRadius: 10
-  attackRadius: 8
-  attackCooldown: 2
-  flyingSpeed: 5
-  pursuitSpeed: 5
-  attackSpeed: 7
-  maxWanderDistance: 8
-  preferredHeight: 5
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 64
-  mapBoundsMargin: 5
-  customMapCenter: {x: 0, y: 0}
-  mapWidth: 100
-  mapHeight: 60
-  animator: {fileID: 0}
-  attackTrigger: Attack
-  flyingBool: IsFlying
-  showDebugInfo: 1
 --- !u!95 &2866502897095981188
 Animator:
   serializedVersion: 5
@@ -176,3 +146,120 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!50 &3186575674122852302
+Rigidbody2D:
+  serializedVersion: 4
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2658086076921413172}
+  m_BodyType: 0
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 0.2
+  m_LinearDrag: 0
+  m_AngularDrag: 0.05
+  m_GravityScale: 0.2
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_Interpolate: 0
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 4
+--- !u!114 &4523241095760354943
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2658086076921413172}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6eff6f07ad1d99f4eac7473354a86781, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallSpeed: 5
+  damage: 1
+  knockbackForce: 3
+  maxLifetime: 5
+  destroyOnImpact: 1
+  collisionLayers:
+    serializedVersion: 2
+    m_Bits: 128
+  impactEffect: {fileID: 0}
+  impactSound: {fileID: 0}
+  splatRadius: 1
+--- !u!114 &8826843337890892731
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2658086076921413172}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62872fc2821ae2946b79522a0f60c744, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 3
+--- !u!114 &-1927168607175590858
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2658086076921413172}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 320bec59a4f3993458fa9ece3174cd67, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  navigationGraph: {fileID: 0}
+  target: {fileID: 0}
+  moveSpeed: 3
+  groundCheckDistance: 0.1
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  faceMovementDirection: 1
+  pathfindingUpdateRate: 0.5
+  detectionRange: 10
+  loseTrackRange: 15
+  respectEdges: 1
+  edgeDetectionCooldown: 1
+  edgeCheckDistance: 0.5
+  edgeRayLength: 1.5
+  debugEdgeDetection: 1
+  usePatrolPoints: 0
+  patrolPoints: []
+  patrolDistance: 8
+  damageOnCollision: 0
+  collisionDamage: 1
+  knockbackForce: 5
+  collisionDamageCooldown: 0.5
+  minDamageVelocity: 0
+  currentState: 0
+  flyingHeight: 5
+  flyingSpeed: 5
+  diveBombSpeed: 8
+  heightVariation: 1.5
+  preferredPlayerDistance: 6
+  avoidanceDistance: 3
+  diveBombCooldown: 4
+  diveBombRange: 8
+  poopCooldown: 7
+  poopProbability: 0.3
+  diveBombDamage: 1
+  poopDamage: 1
+  poopPrefab: {fileID: 6159566060503607319, guid: 2b89255a7702bed45a08c422cba8a767, type: 3}
+  diveSwooshEffect: {fileID: 0}
+  honkSound: {fileID: 0}
+  diveBombSound: {fileID: 0}
+  poopSound: {fileID: 0}

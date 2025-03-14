@@ -14,6 +14,7 @@ public class FlightNodeGenerator : MonoBehaviour
 
     [Header("Bounds")]
     public bool useNavigationGraphBounds = true;
+    [Tooltip("Will be auto-found at runtime if not assigned")]
     public NavigationGraph navigationGraph;
     public Bounds customLevelBounds = new Bounds(Vector3.zero, new Vector3(30, 20, 0));
 
@@ -40,14 +41,17 @@ public class FlightNodeGenerator : MonoBehaviour
     private List<Node> generatedNodes = new List<Node>();
     private Bounds levelBounds;
 
+    void Awake()
+    {
+        // Try to find NavigationGraph immediately if not assigned
+        if (navigationGraph == null)
+        {
+            FindNavigationGraph();
+        }
+    }
+
     void Start()
     {
-        // Find NavigationGraph if not assigned and using its bounds
-        if (useNavigationGraphBounds && navigationGraph == null)
-        {
-            navigationGraph = FindObjectOfType<NavigationGraph>();
-        }
-
         // Create node container if needed
         if (nodeContainer == null)
         {
@@ -59,8 +63,51 @@ public class FlightNodeGenerator : MonoBehaviour
         GenerateFlightNodes();
     }
 
+    private void FindNavigationGraph()
+    {
+        navigationGraph = FindObjectOfType<NavigationGraph>();
+
+        if (navigationGraph == null)
+        {
+            Debug.LogWarning("No NavigationGraph found in the scene! Flight nodes may not be positioned correctly.");
+
+            // Try to get the groundLayer from another component
+            if (groundLayer == 0)
+            {
+                NavigationManager navManager = FindObjectOfType<NavigationManager>();
+                if (navManager != null && navManager.groundLayer != 0)
+                {
+                    groundLayer = navManager.groundLayer;
+                    Debug.Log("Using groundLayer from NavigationManager");
+                }
+            }
+        }
+        else
+        {
+            // Set the groundLayer to match the navigationGraph if it's not already set
+            if (groundLayer == 0)
+            {
+                groundLayer = navigationGraph.groundLayer;
+            }
+
+            // If obstacleLayer is not set, use the groundLayer
+            if (obstacleLayer == 0)
+            {
+                obstacleLayer = groundLayer;
+            }
+
+            Debug.Log("NavigationGraph found automatically");
+        }
+    }
+
     public void GenerateFlightNodes()
     {
+        // Make one final attempt to find NavigationGraph if not assigned
+        if (navigationGraph == null && useNavigationGraphBounds)
+        {
+            FindNavigationGraph();
+        }
+
         // Clear any existing nodes
         ClearNodes();
 
@@ -96,31 +143,88 @@ public class FlightNodeGenerator : MonoBehaviour
 
     private Bounds CalculateBoundsFromNavigationGraph()
     {
-        if (navigationGraph.levelRoot == null)
-            return new Bounds(Vector3.zero, Vector3.one * 100);
-
-        Bounds bounds = new Bounds(navigationGraph.levelRoot.position, Vector3.zero);
-        Collider2D[] colliders = navigationGraph.levelRoot.GetComponentsInChildren<Collider2D>();
-
-        if (colliders.Length == 0)
+        // Try to calculate bounds from existing nodes if available
+        if (navigationGraph.nodes != null && navigationGraph.nodes.Count > 0)
         {
-            Renderer[] renderers = navigationGraph.levelRoot.GetComponentsInChildren<Renderer>();
-            foreach (Renderer renderer in renderers)
+            Bounds bounds = new Bounds();
+            bool isFirstNode = true;
+
+            foreach (var nodeKeyValue in navigationGraph.nodes)
             {
-                bounds.Encapsulate(renderer.bounds);
+                Vector2 worldPos = navigationGraph.GridToWorld(nodeKeyValue.Key);
+
+                if (isFirstNode)
+                {
+                    bounds = new Bounds(worldPos, Vector3.zero);
+                    isFirstNode = false;
+                }
+                else
+                {
+                    bounds.Encapsulate(worldPos);
+                }
             }
-        }
-        else
-        {
-            foreach (Collider2D collider in colliders)
-            {
-                bounds.Encapsulate(collider.bounds);
-            }
+
+            // Expand bounds
+            bounds.Expand(5f);
+            return bounds;
         }
 
-        // Expand bounds
-        bounds.Expand(5f);
-        return bounds;
+        // Fallback to using level root if available
+        if (navigationGraph.levelRoot != null)
+        {
+            Bounds bounds = new Bounds(navigationGraph.levelRoot.position, Vector3.zero);
+            Collider2D[] colliders = navigationGraph.levelRoot.GetComponentsInChildren<Collider2D>();
+
+            if (colliders.Length == 0)
+            {
+                Renderer[] renderers = navigationGraph.levelRoot.GetComponentsInChildren<Renderer>();
+                foreach (Renderer renderer in renderers)
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+            else
+            {
+                foreach (Collider2D collider in colliders)
+                {
+                    bounds.Encapsulate(collider.bounds);
+                }
+            }
+
+            // Expand bounds
+            bounds.Expand(5f);
+            return bounds;
+        }
+
+        // Final fallback - find bounds from all objects in the ground layer
+        Collider2D[] groundColliders = Physics2D.OverlapAreaAll(
+            new Vector2(-1000, -1000),
+            new Vector2(1000, 1000),
+            groundLayer
+        );
+
+        if (groundColliders.Length > 0)
+        {
+            Bounds bounds = new Bounds(groundColliders[0].bounds.center, groundColliders[0].bounds.size);
+
+            for (int i = 1; i < groundColliders.Length; i++)
+            {
+                bounds.Encapsulate(groundColliders[i].bounds);
+            }
+
+            bounds.Expand(10f);
+            return bounds;
+        }
+
+        // Absolute last resort - player-centered bounds
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            return new Bounds(player.transform.position, Vector3.one * 50);
+        }
+
+        // Ultimate fallback - origin-centered bounds
+        return new Bounds(Vector3.zero, Vector3.one * 100);
     }
 
     private void CreateNodes()

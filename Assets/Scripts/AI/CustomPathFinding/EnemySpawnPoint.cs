@@ -95,7 +95,7 @@ public class EnemySpawnPoint : MonoBehaviour
             if (hit.collider != null)
             {
                 // Set position at proper height above ground
-                spawnPosition = new Vector3(transform.position.x, hit.point.y + flyHeight, transform.position.z);
+                spawnPosition = new Vector2(transform.position.x, hit.point.y + flyHeight);
             }
         }
 
@@ -119,7 +119,7 @@ public class EnemySpawnPoint : MonoBehaviour
         }
 
         // Subscribe to enemy destruction to handle respawning
-        SpawnPointDeathTracker deathTracker = spawnedEnemy.AddComponent<SpawnPointDeathTracker>();
+        //SpawnPointDeathTracker deathTracker = spawnedEnemy.AddComponent<SpawnPointDeathTracker>();
 
         return spawnedEnemy;
     }

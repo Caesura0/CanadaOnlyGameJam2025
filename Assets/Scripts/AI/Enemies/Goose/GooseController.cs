@@ -2,821 +2,537 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GooseController : MonoBehaviour
+[RequireComponent(typeof(Rigidbody2D))]
+public class GooseEnemyController : EnemyBaseController
 {
-    [Header("References")]
-    [Tooltip("Reference to the AStarManager")]
-    public AStarManager aStarManager;
+    [Header("Goose Movement Settings")]
+    [SerializeField] private float flyingHeight = 5f;
+    [SerializeField] private float flyingSpeed = 4f;
+    [SerializeField] private float diveBombSpeed = 8f;
+    [SerializeField] private float heightVariation = 1.5f;
+    [SerializeField] private float preferredPlayerDistance = 6f;
+    [SerializeField] private float avoidanceDistance = 3f;
 
-    [Tooltip("Transform of the player to chase")]
-    public Transform playerTransform;
+    [Header("Attack Settings")]
+    [SerializeField] private float diveBombCooldown = 4f;
+    [SerializeField] private float diveBombRange = 8f;
+    [SerializeField] private float poopCooldown = 7f;
+    [SerializeField] private float poopProbability = 0.3f;
+    [SerializeField] private int diveBombDamage = 1;
+    [SerializeField] private int poopDamage = 1;
+    [SerializeField] private GameObject poopPrefab;
 
-    [Header("Detection Settings")]
-    [Tooltip("Distance at which goose can detect player")]
-    public float detectionRadius = 10f;
+    [Header("Visual Feedback")]
+    [SerializeField] private ParticleSystem diveSwooshEffect;
+    [SerializeField] private AudioClip honkSound;
+    [SerializeField] private AudioClip diveBombSound;
+    [SerializeField] private AudioClip poopSound;
 
-    [Tooltip("Distance at which goose can attack player")]
-    public float attackRadius = 8f;
-
-    [Tooltip("Cooldown between attacks (seconds)")]
-    public float attackCooldown = 2f;
-
-    [Header("Movement Settings")]
-    [Tooltip("Normal flying speed")]
-    public float flyingSpeed = 5f;
-
-    [Tooltip("Pursuit flying speed")]
-    public float pursuitSpeed = 5f;
-
-    [Tooltip("Attack diving speed")]
-    public float attackSpeed = 7f;
-
-    [Tooltip("Maximum random wander distance")]
-    public float maxWanderDistance = 8f;
-
-    [Tooltip("Height above ground to maintain while flying")]
-    public float preferredHeight = 5f;
-
-    [Tooltip("Layer mask for ground detection")]
-    public LayerMask groundLayer;
-
-    [Header("Map Bounds")]
-    [Tooltip("Distance from edge that's considered 'near bounds'")]
-    public float mapBoundsMargin = 5f;
-
-    [Tooltip("Custom map center (leave at zero to calculate automatically)")]
-    public Vector2 customMapCenter = Vector2.zero;
-
-    [Tooltip("Map width (X) for bounds checking")]
-    public float mapWidth = 100f;
-
-    [Tooltip("Map height (Y) for bounds checking")]
-    public float mapHeight = 60f;
-
-    [Header("Animation")]
-    [Tooltip("Optional animator component")]
-    public Animator animator;
-
-    [Tooltip("Animation trigger for attack")]
-    public string attackTrigger = "Attack";
-
-    [Tooltip("Boolean parameter for flying")]
-    public string flyingBool = "IsFlying";
-
-    [Header("Debug")]
-    public bool showDebugInfo = true;
-
-    // State machine
-    public enum GooseState { Idle, Wander, Pursue, Attack, Retreat }
-    private GooseState currentState = GooseState.Idle;
-
-    // Pathfinding
-    private List<Node> currentPath;
-    private int currentPathIndex = 0;
-    private Node currentNode;
-    private float nextPathUpdateTime = 0f;
-    private float pathUpdateInterval = 0.5f;
-
-    // Attack
-    private float lastAttackTime = 0f;
-    private bool isAttacking = false;
-    private Vector3 attackStartPosition;
-    private Vector3 attackDirection;
-
-    // Wander
-    private Vector3 wanderTarget;
-    private float wanderUpdateTime = 0f;
-
-    // References
-    private SpriteRenderer spriteRenderer;
-
-    // Direction tracking
-    private bool isFacingRight = true;
-
-    // Stuck detection
-    private Vector3 lastPosition;
-    private float stuckCheckTime = 0f;
-    private int stuckCount = 0;
-
-    // Movement tracking
-    private Vector3 prevPosition;
-    private float updateTimer = 0f;
-
-    void Start()
+    // State tracking
+    private enum GooseAction
     {
-        // Find references at runtime
-        if (aStarManager == null)
-            aStarManager = AStarManager.instance;
-
-        if (playerTransform == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-                playerTransform = player.transform;
-        }
-
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        lastPosition = transform.position;
-        prevPosition = transform.position;
-
-        // Initialize with wander state
-        SetState(GooseState.Wander);
+        Flying,
+        DiveBombing,
+        Retreating
     }
 
-    void Update()
+    private GooseAction currentGooseAction = GooseAction.Flying;
+    private float diveBombTimer = 0f;
+    private float poopTimer = 0f;
+    private float heightTimer = 0f;
+    private float targetFlyHeight;
+    private Vector3 diveBombStartPosition;
+    private Vector3 diveBombTargetPosition;
+    private bool isPerformingAction = false;
+    private float actionStartTime = 0f;
+    private float actionDuration = 0f;
+    private AudioSource audioSource;
+    private bool hasRetreatedAfterDive = false;
+
+    protected override void Start()
     {
-        // Update timer for consistent movement tracking
-        updateTimer += Time.deltaTime;
+        // Initialize base controller settings
+        detectionRange = 15f;
+        loseTrackRange = 20f;
+        moveSpeed = flyingSpeed;
+        damageOnCollision = true;
+        collisionDamage = diveBombDamage;
 
-        // Update current node
-        currentNode = aStarManager.FindNearestNode(transform.position);
+        // Override ground-based navigation
+        respectEdges = false;
 
-        // Check for stuck behavior
-        CheckIfStuck();
+        // Call parent initialization
+        base.Start();
 
-        // Update state behavior
-        UpdateStateBehavior();
+        // Setup for flying
+        rb.gravityScale = 0f;
+        rb.drag = 1f;
 
-        // Update detection
-        UpdateDetection();
-
-        // Update animations
-        if (animator != null)
-            animator.SetBool(flyingBool, true);
-
-        // Update facing direction based on movement at a consistent rate
-        if (updateTimer >= 0.05f) // 20 times per second
+        // Get audio source
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null && (honkSound != null || diveBombSound != null || poopSound != null))
         {
-            UpdateDirection();
-            prevPosition = transform.position; // Track position for next velocity calculation
-            updateTimer = 0f;
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.volume = 0.7f;
+            audioSource.spatialBlend = 1f; // 3D sound
         }
+
+        // Set initial values
+        targetFlyHeight = flyingHeight;
+        diveBombTimer = diveBombCooldown * Random.Range(0.5f, 1f); // Random initial cooldown
+        poopTimer = poopCooldown * Random.Range(0.5f, 1f); // Random initial cooldown
     }
 
-    private void UpdateStateBehavior()
+    protected override void Update()
     {
-        switch (currentState)
+        base.Update();
+
+        // Update timers
+        if (diveBombTimer > 0) diveBombTimer -= Time.deltaTime;
+        if (poopTimer > 0) poopTimer -= Time.deltaTime;
+
+        // Handle height variation
+        if (currentGooseAction == GooseAction.Flying && !isPerformingAction)
         {
-            case GooseState.Wander:
-                // Check if we need a new wander target
-                if (Time.time > wanderUpdateTime || Vector3.Distance(transform.position, wanderTarget) < 0.5f)
-                {
-                    SetNewWanderTarget();
-                }
-
-                // Move toward target
-                MoveToward(wanderTarget, flyingSpeed);
-                MaintainHeight();
-                break;
-
-            case GooseState.Pursue:
-                // Update path to player
-                if (Time.time > nextPathUpdateTime)
-                {
-                    UpdatePathToPlayer();
-                    nextPathUpdateTime = Time.time + pathUpdateInterval;
-                }
-
-                // Follow path
-                FollowPath(pursuitSpeed);
-                break;
-
-            case GooseState.Attack:
-                if (!isAttacking && CanAttackPlayer())
-                {
-                    StartAttack();
-                }
-                else if (isAttacking)
-                {
-                    ExecuteAttack();
-                }
-                else
-                {
-                    SetState(GooseState.Pursue);
-                }
-                break;
-
-            case GooseState.Retreat:
-                if (playerTransform != null)
-                {
-                    // Get retreat direction (away from player)
-                    Vector3 awayFromPlayer = transform.position - playerTransform.position;
-
-                    // If we're near the map bounds, adjust to retreat toward the center
-                    bool nearBounds = IsNearMapBounds();
-
-                    if (nearBounds)
-                    {
-                        // Get direction toward map center
-                        Vector3 mapCenter = GetMapCenter();
-                        Vector3 towardCenter = (mapCenter - transform.position).normalized;
-
-                        // Blend retreat direction - 70% toward center, 30% away from player
-                        awayFromPlayer = (towardCenter * 0.7f + awayFromPlayer.normalized * 0.3f).normalized;
-                    }
-
-                    // Set retreat target with height gain
-                    Vector3 retreatTarget = transform.position + awayFromPlayer.normalized * 5f + Vector3.up;
-
-                    // Move toward retreat target
-                    MoveToward(retreatTarget, flyingSpeed);
-                }
-
-                // After retreating for a bit, go back to wander
-                if (Time.time > wanderUpdateTime)
-                {
-                    SetState(GooseState.Wander);
-                }
-                break;
-
-            case GooseState.Idle:
-            default:
-                // Just hover and maintain height
-                MaintainHeight();
-
-                if (Time.time > wanderUpdateTime)
-                {
-                    SetState(GooseState.Wander);
-                }
-                break;
+            UpdateFlyingHeight();
         }
-    }
 
-    private void UpdateDetection()
-    {
-        switch (currentState)
+        // Handle attack logic in Chase state
+        if (currentState == EnemyState.Chase && !isPerformingAction)
         {
-            case GooseState.Wander:
-            case GooseState.Idle:
-                // If we're wandering or idle, check if we can see player
-                if (CanDetectPlayer())
-                {
-                    SetState(GooseState.Pursue);
-                }
-                break;
-
-            case GooseState.Pursue:
-                // If we're pursuing, check if we've lost sight or can attack
-                if (!CanDetectPlayer())
-                {
-                    SetState(GooseState.Wander);
-                }
-                else if (CanAttackPlayer())
-                {
-                    SetState(GooseState.Attack);
-                }
-                break;
+            TryGooseAttacks();
         }
-    }
 
-    private void CheckIfStuck()
-    {
-        if (Time.time > stuckCheckTime)
+        // Update action state
+        if (isPerformingAction)
         {
-            float distanceMoved = Vector3.Distance(transform.position, lastPosition);
+            float actionProgress = (Time.time - actionStartTime) / actionDuration;
 
-            if (distanceMoved < 0.1f && currentState == GooseState.Wander)
+            if (actionProgress >= 1.0f)
             {
-                stuckCount++;
-                if (stuckCount >= 3)
+                isPerformingAction = false;
+
+                // Action-specific cleanup
+                if (currentGooseAction == GooseAction.DiveBombing)
                 {
-                    SetNewWanderTarget();
-                    stuckCount = 0;
+                    EndDiveBomb();
                 }
+                else if (currentGooseAction == GooseAction.Retreating)
+                {
+                    currentGooseAction = GooseAction.Flying;
+                    hasRetreatedAfterDive = false;
+                }
+            }
+        }
+
+        // Sync animation state
+        UpdateAnimatorState();
+    }
+
+    private void UpdateFlyingHeight()
+    {
+        // Occasionally change target height for more natural movement
+        heightTimer -= Time.deltaTime;
+        if (heightTimer <= 0)
+        {
+            targetFlyHeight = flyingHeight + Random.Range(-heightVariation, heightVariation);
+            heightTimer = Random.Range(2f, 4f);
+        }
+    }
+
+    protected override void ExecuteMovement()
+    {
+        // Don't use the standard ground-based movement
+        // Instead, handle flying movement based on goose state
+        switch (currentGooseAction)
+        {
+            case GooseAction.Flying:
+                ExecuteFlyingMovement();
+                break;
+
+            case GooseAction.DiveBombing:
+                ExecuteDiveBombMovement();
+                break;
+
+            case GooseAction.Retreating:
+                ExecuteRetreatMovement();
+                break;
+        }
+    }
+
+    private void ExecuteFlyingMovement()
+    {
+        Vector2 moveDirection = Vector2.zero;
+
+        if (currentState == EnemyState.Chase && target != null)
+        {
+            // Get distance to player for positioning logic
+            float distToPlayer = Vector2.Distance(transform.position, target.position);
+            Vector2 dirToPlayer = (target.position - transform.position).normalized;
+
+            // Decide movement behavior based on distance to player
+            if (distToPlayer < avoidanceDistance)
+            {
+                // Too close - move away slightly but maintain elevation
+                moveDirection = -dirToPlayer;
+                moveDirection.y *= 0.5f; // Reduce vertical component to prioritize horizontal movement
+            }
+            else if (distToPlayer > preferredPlayerDistance)
+            {
+                // Too far - move closer
+                moveDirection = dirToPlayer;
+                moveDirection.y *= 0.5f; // Reduce vertical component
             }
             else
             {
-                stuckCount = 0;
+                // Good distance - circle around player
+                moveDirection = new Vector2(-dirToPlayer.y, dirToPlayer.x) * 0.7f; // Perpendicular movement
+                moveDirection.x += dirToPlayer.x * 0.3f; // Mix in some towards/away movement
             }
 
-            lastPosition = transform.position;
-            stuckCheckTime = Time.time + 0.5f;
-        }
-    }
-
-    private void UpdateDirection()
-    {
-        // Determine direction based on current movement or target
-        float dirX = 0;
-
-        if (isAttacking && attackDirection != Vector3.zero)
-        {
-            dirX = attackDirection.x;
-        }
-        else if (currentPath != null && currentPathIndex < currentPath.Count)
-        {
-            dirX = currentPath[currentPathIndex].transform.position.x - transform.position.x;
-        }
-        else if (currentState == GooseState.Wander)
-        {
-            dirX = wanderTarget.x - transform.position.x;
-        }
-        else if (playerTransform != null && (currentState == GooseState.Pursue || currentState == GooseState.Attack))
-        {
-            dirX = playerTransform.position.x - transform.position.x;
-        }
-
-        // Only update if we have a clear direction
-        if (Mathf.Abs(dirX) > 0.1f)
-        {
-            bool newFacingRight = dirX > 0;
-
-            // Only flip if direction changed
-            if (newFacingRight != isFacingRight)
+            // Adjust facing direction based on movement
+            if (faceMovementDirection && Mathf.Abs(moveDirection.x) > 0.1f)
             {
-                isFacingRight = newFacingRight;
-
-                if (spriteRenderer != null)
-                    spriteRenderer.flipX = !isFacingRight;
+                FlipSpriteDirectly(moveDirection.x > 0);
             }
         }
-    }
-
-    #region Movement
-
-    private void MoveToward(Vector3 target, float speed)
-    {
-        Vector3 direction = (target - transform.position).normalized;
-        transform.position += direction * speed * Time.deltaTime;
-    }
-
-    private void FollowPath(float speed)
-    {
-        if (currentPath == null || currentPath.Count == 0)
-            return;
-
-        if (currentPathIndex < currentPath.Count)
+        else if (currentState == EnemyState.Patrol)
         {
-            Node targetNode = currentPath[currentPathIndex];
-            float distanceToTarget = Vector3.Distance(transform.position, targetNode.transform.position);
+            // Use patrol targets from base class
+            Vector2 targetPos = DetermineCurrentTarget();
+            moveDirection = (targetPos - (Vector2)transform.position).normalized;
 
-            if (distanceToTarget < 0.5f)
+            // Adjust facing direction
+            if (faceMovementDirection && Mathf.Abs(moveDirection.x) > 0.1f)
             {
-                currentPathIndex++;
-
-                if (currentPathIndex >= currentPath.Count)
-                {
-                    if (CanAttackPlayer())
-                    {
-                        SetState(GooseState.Attack);
-                        return;
-                    }
-                    else
-                    {
-                        UpdatePathToPlayer();
-                        currentPathIndex = 0;
-                    }
-                }
-            }
-
-            if (currentPathIndex < currentPath.Count)
-            {
-                MoveToward(currentPath[currentPathIndex].transform.position, speed);
+                FlipSpriteDirectly(moveDirection.x > 0);
             }
         }
-        else
+
+        // Adjust vertical movement to maintain desired height
+        MaintainFlyingHeight();
+
+        // Apply movement
+        if (moveDirection != Vector2.zero)
         {
-            UpdatePathToPlayer();
-            currentPathIndex = 0;
+            rb.velocity = moveDirection.normalized * moveSpeed;
         }
     }
 
-    private void MaintainHeight()
+    private void MaintainFlyingHeight()
     {
-        RaycastHit2D hit = Physics2D.Raycast(
-            transform.position,
-            Vector2.down,
-            100f,
-            groundLayer
-        );
+        // Cast ray downward to find ground height
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, 100f, groundLayer);
 
         if (hit.collider != null)
         {
-            float currentHeight = transform.position.y - hit.point.y;
+            float groundHeight = hit.point.y;
+            float targetHeight = groundHeight + targetFlyHeight;
+            float currentHeight = transform.position.y;
 
-            if (currentHeight < preferredHeight)
+            // Smoothly adjust height
+            if (Mathf.Abs(currentHeight - targetHeight) > 0.5f)
             {
-                transform.position += Vector3.up * Mathf.Min(flyingSpeed * Time.deltaTime, preferredHeight - currentHeight);
-            }
-            else if (currentHeight > preferredHeight + 2f)
-            {
-                transform.position += Vector3.down * Mathf.Min(flyingSpeed * 0.5f * Time.deltaTime, currentHeight - preferredHeight);
-            }
-        }
-    }
-
-    #endregion
-
-    #region Pathfinding
-
-    private void UpdatePathToPlayer()
-    {
-        if (playerTransform == null || aStarManager == null || currentNode == null)
-            return;
-
-        Node playerNode = aStarManager.FindNearestNode(playerTransform.position);
-
-        if (playerNode != null && currentNode != null)
-        {
-            List<Node> newPath = aStarManager.GeneratePath(currentNode, playerNode);
-
-            if (newPath != null && newPath.Count > 0)
-            {
-                currentPath = newPath;
-                currentPathIndex = 0;
-            }
-        }
-    }
-
-    #endregion
-
-    #region Wander
-
-    private void SetNewWanderTarget()
-    {
-        // First check if we're near map bounds
-        if (IsNearMapBounds())
-        {
-            // If near bounds, target toward map center
-            Vector3 mapCenter = GetMapCenter();
-            Vector3 towardCenter = (mapCenter - transform.position).normalized;
-            wanderTarget = transform.position + towardCenter * maxWanderDistance * 0.8f;
-            wanderUpdateTime = Time.time + Random.Range(3f, 5f);
-            return;
-        }
-
-        Node[] allNodes = aStarManager.AllNodes();
-
-        if (allNodes.Length == 0)
-        {
-            // Fallback to random position
-            wanderTarget = transform.position + new Vector3(
-                Random.Range(-maxWanderDistance, maxWanderDistance),
-                Random.Range(0, maxWanderDistance / 2),
-                0
-            );
-
-            // Ensure we don't wander toward map edges
-            Vector3 mapCenter = GetMapCenter();
-            Vector3 currentToTarget = wanderTarget - transform.position;
-            Vector3 currentToCenter = mapCenter - transform.position;
-
-            // If target is away from center but we're already near edge, flip direction
-            if (Vector3.Dot(currentToTarget, currentToCenter) < 0 && IsNearMapBounds())
-            {
-                wanderTarget = transform.position - currentToTarget;
-            }
-
-            wanderUpdateTime = Time.time + Random.Range(2f, 5f);
-            return;
-        }
-
-        // Try to find nodes within reasonable distance
-        List<Node> validNodes = new List<Node>();
-
-        foreach (Node node in allNodes)
-        {
-            if (node == null) continue;
-
-            float distance = Vector3.Distance(transform.position, node.transform.position);
-
-            if (distance <= maxWanderDistance && distance > 2f)
-            {
-                // Check if we can reach this node
-                RaycastHit2D hit = Physics2D.Raycast(
-                    transform.position,
-                    (node.transform.position - transform.position).normalized,
-                    distance,
-                    groundLayer
-                );
-
-                if (hit.collider == null)
+                float verticalVelocity = rb.velocity.y;
+                if (currentHeight < targetHeight)
                 {
-                    validNodes.Add(node);
+                    // Move up
+                    verticalVelocity = Mathf.Lerp(verticalVelocity, moveSpeed, 0.1f);
                 }
+                else
+                {
+                    // Move down
+                    verticalVelocity = Mathf.Lerp(verticalVelocity, -moveSpeed * 0.7f, 0.1f);
+                }
+
+                // Apply vertical velocity
+                rb.velocity = new Vector2(rb.velocity.x, verticalVelocity);
             }
-        }
-
-        if (validNodes.Count > 0)
-        {
-            Node targetNode = validNodes[Random.Range(0, validNodes.Count)];
-            wanderTarget = targetNode.transform.position;
-        }
-        else
-        {
-            // Fallback to random direction
-            Vector3 randomDir = new Vector3(
-                Random.Range(-1f, 1f),
-                Random.Range(-0.2f, 0.5f),
-                0
-            ).normalized;
-
-            wanderTarget = transform.position + randomDir * Random.Range(3f, maxWanderDistance * 0.8f);
-
-            // Check if this direction takes us toward map edge
-            Vector3 mapCenter = GetMapCenter();
-            Vector3 currentToTarget = wanderTarget - transform.position;
-            Vector3 currentToCenter = mapCenter - transform.position;
-
-            // If target is away from center but we're already near edge, go toward center instead
-            if (Vector3.Dot(currentToTarget, currentToCenter) < 0 && IsNearMapBounds())
-            {
-                wanderTarget = transform.position + currentToCenter.normalized * Random.Range(3f, maxWanderDistance * 0.8f);
-            }
-        }
-
-        wanderUpdateTime = Time.time + Random.Range(3f, 8f);
-    }
-
-    #endregion
-
-    #region Attack
-
-    private void StartAttack()
-    {
-        isAttacking = true;
-        lastAttackTime = Time.time;
-        attackStartPosition = transform.position;
-
-        if (playerTransform != null)
-        {
-            attackDirection = (playerTransform.position - transform.position).normalized;
-        }
-        else
-        {
-            attackDirection = Vector3.down;
-        }
-
-        if (animator != null)
-        {
-            animator.SetTrigger(attackTrigger);
         }
     }
 
-    private void ExecuteAttack()
+    private void TryGooseAttacks()
     {
-        transform.position += attackDirection * attackSpeed * Time.deltaTime;
+        if (target == null) return;
 
-        if (playerTransform != null)
+        float distToPlayer = Vector2.Distance(transform.position, target.position);
+
+        // Check if we can dive bomb
+        if (diveBombTimer <= 0 && distToPlayer <= diveBombRange && !isPerformingAction)
         {
-            float distToPlayer = Vector3.Distance(transform.position, playerTransform.position);
-            if (distToPlayer < 0.8f)
+            // Prioritize dive bomb if player is below
+            if (target.position.y < transform.position.y - 1f)
             {
-                // Hit player - implement damage here
-                Debug.Log("Goose hit player!");
-
-                isAttacking = false;
-                SetState(GooseState.Retreat);
+                StartDiveBomb();
+                return;
+            }
+            else if (Random.value < 0.3f) // Less likely to dive if player isn't below
+            {
+                StartDiveBomb();
                 return;
             }
         }
 
-        float attackDistance = Vector3.Distance(transform.position, attackStartPosition);
-
-        RaycastHit2D groundHit = Physics2D.Raycast(
-            transform.position,
-            Vector2.down,
-            0.5f,
-            groundLayer
-        );
-
-        if (groundHit.collider != null || attackDistance > 5f)
+        // Check if we can/should poop
+        if (poopTimer <= 0 && !isPerformingAction && Random.value < poopProbability)
         {
-            isAttacking = false;
-            SetState(GooseState.Retreat);
-        }
-    }
-
-    #endregion
-
-    #region Detection
-
-    private bool CanDetectPlayer()
-    {
-        if (playerTransform == null)
-            return false;
-
-        float distToPlayer = Vector3.Distance(transform.position, playerTransform.position);
-
-        if (distToPlayer > detectionRadius)
-            return false;
-
-        // Line of sight check
-        RaycastHit2D hit = Physics2D.Raycast(
-            transform.position,
-            (playerTransform.position - transform.position).normalized,
-            distToPlayer,
-            groundLayer
-        );
-
-        return hit.collider == null;
-    }
-
-    private bool CanAttackPlayer()
-    {
-        if (playerTransform == null)
-            return false;
-
-        float distToPlayer = Vector3.Distance(transform.position, playerTransform.position);
-
-        return distToPlayer <= attackRadius && Time.time > lastAttackTime + attackCooldown;
-    }
-
-    #endregion
-
-    #region State Management
-
-    private void SetState(GooseState newState)
-    {
-        // Handle exit actions
-        switch (currentState)
-        {
-            case GooseState.Attack:
-                isAttacking = false;
-                break;
-
-            case GooseState.Retreat:
-                // If we were retreating and going to wander, check if we're out of bounds
-                if (newState == GooseState.Wander && IsNearMapBounds())
-                {
-                    // If we're near bounds, force retreat toward center instead
-                    Vector3 toCenter = GetMapCenter() - transform.position;
-                    wanderTarget = transform.position + toCenter.normalized * 10f;
-                    wanderUpdateTime = Time.time + 5f;
-                }
-                break;
-        }
-
-        // Set new state
-        currentState = newState;
-        stuckCount = 0;
-
-        // Handle entry actions
-        switch (newState)
-        {
-            case GooseState.Idle:
-                currentPath = null;
-                wanderUpdateTime = Time.time + Random.Range(1f, 3f);
-                break;
-
-            case GooseState.Wander:
-                SetNewWanderTarget();
-                break;
-
-            case GooseState.Pursue:
-                UpdatePathToPlayer();
-                break;
-
-            case GooseState.Retreat:
-                wanderUpdateTime = Time.time + 2f; // Shortened retreat time
-                currentPath = null;
-                break;
-        }
-
-        if (showDebugInfo)
-        {
-            Debug.Log($"Goose state: {newState}");
-        }
-    }
-
-    #endregion
-
-    #region Map Bounds Handling
-
-    private Vector3 GetMapCenter()
-    {
-        // If custom center is set, use it
-        if (customMapCenter != Vector2.zero)
-        {
-            return new Vector3(customMapCenter.x, customMapCenter.y, 0);
-        }
-
-        // Otherwise, try to calculate from level data
-        if (aStarManager != null)
-        {
-            // Get all nodes as the most reliable way to determine level bounds
-            Node[] allNodes = aStarManager.AllNodes();
-
-            if (allNodes.Length > 0)
+            // Must be above player to poop
+            if (target.position.y < transform.position.y - 2f && IsDirectlyAbovePlayer())
             {
-                Vector3 sum = Vector3.zero;
-                foreach (Node node in allNodes)
-                {
-                    if (node != null)
-                        sum += node.transform.position;
-                }
-
-                // Return average position of all nodes
-                return sum / allNodes.Length;
+                DropPoop();
+                return;
             }
         }
-
-        // Fallback: use the player position
-        if (playerTransform != null)
-        {
-            return playerTransform.position;
-        }
-
-        // Last resort: return this object's position (not ideal)
-        return transform.position;
     }
 
-    private bool IsNearMapBounds()
+    private bool IsDirectlyAbovePlayer()
     {
-        Vector3 mapCenter = GetMapCenter();
-        Vector3 position = transform.position;
+        if (target == null) return false;
 
-        // Calculate relative position from center
-        float relativeX = Mathf.Abs(position.x - mapCenter.x);
-        float relativeY = Mathf.Abs(position.y - mapCenter.y);
-
-        // Check if we're near the map edge
-        bool nearHorizontalBound = relativeX > (mapWidth / 2f - mapBoundsMargin);
-        bool nearVerticalBound = relativeY > (mapHeight / 2f - mapBoundsMargin);
-
-        // Also do a simple node check - if there are no nodes around us, we're probably out of bounds
-        bool noNodesNearby = true;
-
-        if (aStarManager != null)
-        {
-            Node nearestNode = aStarManager.FindNearestNode(position);
-            if (nearestNode != null)
-            {
-                float distanceToNode = Vector3.Distance(position, nearestNode.transform.position);
-                noNodesNearby = distanceToNode > 15f; // If nearest node is very far, we're likely out of bounds
-            }
-        }
-
-        return nearHorizontalBound || nearVerticalBound || noNodesNearby;
+        // Check if we're positioned roughly above the player
+        float xDiff = Mathf.Abs(transform.position.x - target.position.x);
+        return xDiff < 2f;
     }
 
-    #endregion
-
-    void OnDrawGizmos()
+    private void StartDiveBomb()
     {
-        if (!showDebugInfo)
-            return;
+        currentGooseAction = GooseAction.DiveBombing;
+        isPerformingAction = true;
+        actionStartTime = Time.time;
+        actionDuration = 1.5f; // Time to complete dive bomb
 
-        // Draw detection radius
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRadius);
+        // Store positions for interpolation
+        diveBombStartPosition = transform.position;
+        diveBombTargetPosition = target.position;
 
-        // Draw attack radius
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRadius);
-
-        // Draw facing direction
-        Gizmos.color = Color.blue;
-        Vector3 facingDir = isFacingRight ? Vector3.right : Vector3.left;
-        Gizmos.DrawRay(transform.position, facingDir * 2f);
-
-        // Draw current path
-        if (currentPath != null && currentPath.Count > 0)
+        // Make sure the target point is on ground
+        RaycastHit2D hit = Physics2D.Raycast(diveBombTargetPosition, Vector2.down, 10f, groundLayer);
+        if (hit.collider != null)
         {
-            Gizmos.color = Color.cyan;
+            diveBombTargetPosition.y = hit.point.y + 0.5f; // Slightly above ground
+        }
 
-            for (int i = 0; i < currentPath.Count - 1; i++)
-            {
-                if (currentPath[i] != null && currentPath[i + 1] != null)
-                {
-                    Gizmos.DrawLine(
-                        currentPath[i].transform.position,
-                        currentPath[i + 1].transform.position
-                    );
-                }
-            }
+        // Play sound & effects
+        if (audioSource != null && diveBombSound != null)
+        {
+            audioSource.PlayOneShot(diveBombSound);
+        }
 
-            // Show current target node
-            if (currentPathIndex < currentPath.Count && currentPath[currentPathIndex] != null)
+        if (diveSwooshEffect != null)
+        {
+            diveSwooshEffect.Play();
+        }
+
+        // Enable damage collision
+        damageOnCollision = true;
+        collisionDamage = diveBombDamage;
+        knockbackForce = 5f;
+
+        // Reset cooldown
+        diveBombTimer = diveBombCooldown;
+
+        // Animation trigger if available
+        Animator animator = GetComponent<Animator>();
+        if (animator != null)
+        {
+            animator.SetTrigger("DiveBomb");
+        }
+    }
+
+    private void ExecuteDiveBombMovement()
+    {
+        if (!isPerformingAction) return;
+
+        // Calculate dive trajectory with curved path
+        float progress = (Time.time - actionStartTime) / actionDuration;
+        progress = Mathf.Clamp01(progress);
+
+        // Create a curved path: first move slightly up, then dive down
+        float heightOffset;
+        if (progress < 0.3f)
+        {
+            // Initial upward movement
+            heightOffset = Mathf.Sin(progress * Mathf.PI) * 2f;
+        }
+        else
+        {
+            // Diving phase
+            heightOffset = 0;
+        }
+
+        // Calculate position along curve
+        Vector3 straightLinePos = Vector3.Lerp(diveBombStartPosition, diveBombTargetPosition, progress);
+        Vector3 curvedPos = straightLinePos + new Vector3(0, heightOffset, 0);
+
+        // Set position directly for more precise control during dive
+        transform.position = curvedPos;
+
+        // Set velocity in dive direction for collision detection
+        Vector3 moveDir = (diveBombTargetPosition - transform.position).normalized;
+        rb.velocity = moveDir * diveBombSpeed;
+
+        // Update facing direction
+        if (faceMovementDirection && Mathf.Abs(moveDir.x) > 0.1f)
+        {
+            FlipSpriteDirectly(moveDir.x > 0);
+        }
+    }
+
+    private void EndDiveBomb()
+    {
+        // Transition to retreat
+        currentGooseAction = GooseAction.Retreating;
+        isPerformingAction = true;
+        actionStartTime = Time.time;
+        actionDuration = 1.0f;
+        hasRetreatedAfterDive = true;
+
+        // Disable damage collision after dive
+        damageOnCollision = false;
+
+        // Reset velocity
+        rb.velocity = Vector2.up * flyingSpeed;
+    }
+
+    private void ExecuteRetreatMovement()
+    {
+        if (target == null) return;
+
+        // Move upward and away from player
+        Vector2 awayFromPlayer = (transform.position - target.position).normalized;
+
+        // Emphasize upward movement
+        awayFromPlayer.y = Mathf.Abs(awayFromPlayer.y) + 0.5f;
+
+        // Apply movement
+        rb.velocity = awayFromPlayer.normalized * flyingSpeed;
+    }
+
+    private void DropPoop()
+    {
+        // Can't poop without a prefab
+        if (poopPrefab == null) return;
+
+        // Play sound
+        if (audioSource != null && poopSound != null)
+        {
+            audioSource.PlayOneShot(poopSound);
+        }
+
+        // Instantiate poop object
+        GameObject poopObject = Instantiate(poopPrefab, transform.position, Quaternion.identity);
+
+        // Configure the poop projectile
+        PoopProjectile poopScript = poopObject.GetComponent<PoopProjectile>();
+        if (poopScript == null)
+        {
+            poopScript = poopObject.AddComponent<PoopProjectile>();
+        }
+
+        // Set up poop damage and properties
+        poopScript.damage = poopDamage;
+        poopScript.knockbackForce = 3f;
+        poopScript.destroyOnImpact = true;
+
+        // Reset cooldown
+        poopTimer = poopCooldown;
+
+        // Animation trigger if available
+        Animator animator = GetComponent<Animator>();
+        if (animator != null)
+        {
+            animator.SetTrigger("Poop");
+        }
+    }
+
+    private void UpdateAnimatorState()
+    {
+        Animator animator = GetComponent<Animator>();
+        if (animator == null) return;
+
+        // Update animation state based on current action
+        animator.SetBool("IsFlying", currentGooseAction == GooseAction.Flying);
+        animator.SetBool("IsDiving", currentGooseAction == GooseAction.DiveBombing);
+        animator.SetFloat("MoveSpeed", rb.velocity.magnitude);
+    }
+
+    // Override UpdateGroundedState to always be "flying"
+    protected override void UpdateGroundedState()
+    {
+        // Goose is never grounded when active
+        isGrounded = false;
+    }
+
+    // Override to handle collision with player during dive bomb
+    protected override void OnPlayerDamaged(Collision2D collision)
+    {
+       base.OnPlayerDamaged(collision);
+
+        // If we hit the player while dive bombing, end it
+        if (currentGooseAction == GooseAction.DiveBombing)
+        {
+            isPerformingAction = false;
+            EndDiveBomb();
+        }
+    }
+
+    // Override to add more visualization options
+    protected override void OnDrawGizmosSelected()
+    {
+        base.OnDrawGizmosSelected();
+
+        // Draw dive bomb range
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, diveBombRange);
+
+        // Draw preferred distance
+        Gizmos.color = new Color(0f, 1f, 0f, 0.2f);
+        Gizmos.DrawWireSphere(transform.position, preferredPlayerDistance);
+
+        // Draw avoidance distance
+        Gizmos.color = new Color(1f, 0f, 0f, 0.2f);
+        Gizmos.DrawWireSphere(transform.position, avoidanceDistance);
+
+        // Show flying height visualization
+        if (Application.isPlaying)
+        {
+            RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, 10f, groundLayer);
+            if (hit.collider != null)
             {
+                float groundHeight = hit.point.y;
+                float targetHeight = groundHeight + targetFlyHeight;
+
+                // Draw line from ground to target height
                 Gizmos.color = Color.green;
-                Gizmos.DrawSphere(currentPath[currentPathIndex].transform.position, 0.3f);
+                Gizmos.DrawLine(new Vector3(transform.position.x, groundHeight, 0),
+                               new Vector3(transform.position.x, targetHeight, 0));
+
+                // Draw sphere at target height
+                Gizmos.DrawWireSphere(new Vector3(transform.position.x, targetHeight, 0), 0.5f);
             }
         }
 
-        // Draw wander target
-        if (currentState == GooseState.Wander)
+        // If diving, show trajectory
+        if (Application.isPlaying && currentGooseAction == GooseAction.DiveBombing)
         {
-            Gizmos.color = Color.magenta;
-            Gizmos.DrawSphere(wanderTarget, 0.2f);
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(transform.position, diveBombTargetPosition);
+            Gizmos.DrawWireSphere(diveBombTargetPosition, 0.5f);
         }
+    }
 
-        // Draw map bounds if using bounds checking
-        if (mapWidth > 0 && mapHeight > 0)
+    // Add destruction tracking methods
+    private void OnDestroy()
+    {
+        Debug.LogError($"GooseEnemyController: Being destroyed! GameObject active: {gameObject.activeInHierarchy}, Time: {Time.time}, Position: {transform.position}");
+    }
+
+    private void OnDisable()
+    {
+        // Only log if this happens during gameplay, not scene changes
+        if (Time.time > 1f)
         {
-            Gizmos.color = new Color(0.5f, 0.5f, 1f, 0.5f);
-            Vector3 center = GetMapCenter();
-            Vector3 size = new Vector3(mapWidth, mapHeight, 0);
-            Gizmos.DrawWireCube(center, size);
-
-            // Inner bounds with margin
-            Gizmos.color = new Color(1f, 0.5f, 0.5f, 0.3f);
-            Gizmos.DrawWireCube(center, new Vector3(mapWidth - mapBoundsMargin * 2, mapHeight - mapBoundsMargin * 2, 0));
+            Debug.LogWarning($"GooseEnemyController: Being disabled! Time: {Time.time}, Position: {transform.position}");
         }
-
-        // Show state info
-#if UNITY_EDITOR
-        UnityEditor.Handles.Label(transform.position + Vector3.up * 1.2f, currentState.ToString());
-#endif
     }
 }

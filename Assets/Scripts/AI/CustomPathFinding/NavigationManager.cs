@@ -19,8 +19,8 @@ public class NavigationManager : MonoBehaviour
     public GameObject[] flyingEnemyPrefabs;  // New array for flying enemies
     public Transform enemyContainer;
     public bool spawnEnemiesOnStart = true;
-    public int initialGroundEnemyCount = 3;
-    public int initialFlyingEnemyCount = 2;  // New count for flying enemies
+    public int initialGroundEnemyCount = 0;
+    public int initialFlyingEnemyCount = 0;  // New count for flying enemies
 
     // Define enum outside the class to avoid Unity serialization issues
     public enum SpawnAreaType { Radius, Cone }
@@ -83,7 +83,6 @@ public class NavigationManager : MonoBehaviour
             chunkManager = FindObjectOfType<ChunkManager>();
             if (chunkManager == null)
             {
-                Debug.LogWarning("No ChunkManager found but useChunkBasedNavigation is enabled! Disabling chunk navigation.");
                 useChunkBasedNavigation = false;
             }
         }
@@ -94,8 +93,6 @@ public class NavigationManager : MonoBehaviour
             navigationGraph = FindObjectOfType<NavigationGraph>();
             if (navigationGraph == null)
             {
-                Debug.LogError("No NavigationGraph component found! Creating one now.");
-
                 // Create a navigation graph if none exists
                 GameObject navGraphObj = new GameObject("NavigationGraph");
                 navigationGraph = navGraphObj.AddComponent<NavigationGraph>();
@@ -141,8 +138,15 @@ public class NavigationManager : MonoBehaviour
         int groundEnemiesSpawned = 0;
         int flyingEnemiesSpawned = 0;
 
+        // First, ensure we have a valid navigationGraph
+        if (navigationGraph == null)
+        {
+            Debug.LogError("NavigationManager: Navigation graph is null. Cannot spawn enemies.");
+            yield break;
+        }
+
         // Ensure flight nodes exist if we're spawning flying enemies
-        if (ensureFlightNodesExist && flyingEnemyPrefabs.Length > 0 && initialFlyingEnemyCount > 0)
+        if (ensureFlightNodesExist && flyingEnemyPrefabs != null && flyingEnemyPrefabs.Length > 0 && initialFlyingEnemyCount > 0)
         {
             FlightNodeGenerator flightNodeGen = FindObjectOfType<FlightNodeGenerator>();
             if (flightNodeGen == null)
@@ -150,49 +154,81 @@ public class NavigationManager : MonoBehaviour
                 Debug.Log("Creating FlightNodeGenerator for flying enemies");
                 GameObject nodeGenObj = new GameObject("FlightNodeGenerator");
                 flightNodeGen = nodeGenObj.AddComponent<FlightNodeGenerator>();
-                flightNodeGen.navigationGraph = navigationGraph;
-                flightNodeGen.useNavigationGraphBounds = true;
-                flightNodeGen.groundLayer = navigationGraph.groundLayer;
-                flightNodeGen.obstacleLayer = navigationGraph.groundLayer;
+
+                // Safely assign properties, checking for null
+                if (navigationGraph != null)
+                {
+                    flightNodeGen.navigationGraph = navigationGraph;
+                    flightNodeGen.useNavigationGraphBounds = true;
+
+                    // Check if groundLayer is valid before assigning
+                    if (navigationGraph.groundLayer != 0)
+                    {
+                        flightNodeGen.groundLayer = navigationGraph.groundLayer;
+                        flightNodeGen.obstacleLayer = navigationGraph.groundLayer;
+                    }
+                    else
+                    {
+                        // Fallback to using our own groundLayer
+                        flightNodeGen.groundLayer = groundLayer;
+                        flightNodeGen.obstacleLayer = groundLayer;
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("NavigationGraph is null when creating FlightNodeGenerator. Using default settings.");
+                    flightNodeGen.groundLayer = groundLayer;
+                    flightNodeGen.obstacleLayer = groundLayer;
+                }
             }
 
-            // Generate flight nodes if needed
-            if (flightNodeGen.GetGeneratedNodes().Count == 0)
+            // Generate flight nodes if needed - safely check if collection is null first
+            if (flightNodeGen != null)
             {
-                Debug.Log("Generating flight nodes for flying enemies");
-                flightNodeGen.GenerateFlightNodes();
-            }
+                var generatedNodes = flightNodeGen.GetGeneratedNodes();
+                if (generatedNodes == null || generatedNodes.Count == 0)
+                {
+                    Debug.Log("Generating flight nodes for flying enemies");
+                    flightNodeGen.GenerateFlightNodes();
+                }
 
-            // Wait a moment for nodes to be generated
-            yield return new WaitForSeconds(0.3f);
+                // Wait a moment for nodes to be generated
+                yield return new WaitForSeconds(0.3f);
+            }
         }
 
         // Try to spawn ground enemies
-        for (int i = 0; i < initialGroundEnemyCount; i++)
+        if (groundEnemyPrefabs != null)
         {
-            if (groundEnemyPrefabs.Length > 0)
+            for (int i = 0; i < initialGroundEnemyCount; i++)
             {
-                GameObject enemy = SpawnGroundEnemy();
-
-                if (enemy != null)
+                if (groundEnemyPrefabs.Length > 0)
                 {
-                    groundEnemiesSpawned++;
-                    yield return new WaitForSeconds(0.2f); // Stagger spawns
+                    GameObject enemy = SpawnGroundEnemy();
+
+                    if (enemy != null)
+                    {
+                        groundEnemiesSpawned++;
+                        yield return new WaitForSeconds(0.2f); // Stagger spawns
+                    }
                 }
             }
         }
 
         // Try to spawn flying enemies
-        for (int i = 0; i < initialFlyingEnemyCount; i++)
+        if (flyingEnemyPrefabs != null)
         {
-            if (flyingEnemyPrefabs.Length > 0)
+            for (int i = 0; i < initialFlyingEnemyCount; i++)
             {
-                GameObject enemy = SpawnFlyingEnemy();
-
-                if (enemy != null)
+                if (flyingEnemyPrefabs.Length > 0)
                 {
-                    flyingEnemiesSpawned++;
-                    yield return new WaitForSeconds(0.2f); // Stagger spawns
+                    GameObject enemy = SpawnFlyingEnemy();
+
+                    if (enemy != null)
+                    {
+                        flyingEnemiesSpawned++;
+                        yield return new WaitForSeconds(0.2f); // Stagger spawns
+                    }
                 }
             }
         }
@@ -231,11 +267,13 @@ public class NavigationManager : MonoBehaviour
         return enemyObject;
     }
 
-    // Spawn a single flying enemy at a valid position (new method)
     public GameObject SpawnFlyingEnemy()
     {
-        if (flyingEnemyPrefabs.Length == 0)
+        if (flyingEnemyPrefabs == null || flyingEnemyPrefabs.Length == 0)
+        {
+            Debug.LogWarning("No flying enemy prefabs assigned to NavigationManager");
             return null;
+        }
 
         // Choose a random enemy prefab
         GameObject prefab = flyingEnemyPrefabs[Random.Range(0, flyingEnemyPrefabs.Length)];
@@ -244,22 +282,48 @@ public class NavigationManager : MonoBehaviour
         Vector3 spawnPos = FindValidFlyingSpawnPosition();
 
         // Instantiate the enemy
-        GameObject enemyObject = Instantiate(prefab, spawnPos, Quaternion.identity, enemyContainer);
+        GameObject enemyObject = null;
+        try
+        {
+            // Make sure we have a valid container
+            if (enemyContainer == null)
+            {
+                GameObject container = new GameObject("Enemies");
+                enemyContainer = container.transform;
+            }
 
-        // Set up the goose controller (if it has one)
-        GooseController gooseController = enemyObject.GetComponent<GooseController>();
-        if (gooseController != null)
-        {
-            // Reference setup is handled in the GooseController's Start method
-            Debug.Log($"Spawned flying enemy {enemyObject.name}");
+            enemyObject = Instantiate(prefab, spawnPos, Quaternion.identity, enemyContainer);
+
+            Debug.Log($"Spawned flying enemy {prefab.name} at position {spawnPos}");
+
+            // Set up the goose controller (if it has one)
+            GooseEnemyController gooseController = enemyObject.GetComponent<GooseEnemyController>();
+            if (gooseController != null)
+            {
+
+                // Set ground layer if needed
+                if (gooseController.groundLayer == 0 && groundLayer != 0)
+                {
+                    gooseController.groundLayer = groundLayer;
+                }
+
+                Debug.Log($"Successfully configured GooseEnemyController on {enemyObject.name}");
+            }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.LogWarning($"No GooseController found on spawned flying enemy {enemyObject.name}");
+            Debug.LogError($"Error spawning flying enemy: {e.Message}\n{e.StackTrace}");
+            if (enemyObject != null)
+            {
+                Destroy(enemyObject);
+                return null;
+            }
         }
 
         return enemyObject;
     }
+
+
 
     // Find a valid position to spawn a ground enemy (renamed from FindValidSpawnPosition)
     private Vector3 FindValidGroundSpawnPosition()
@@ -357,7 +421,6 @@ public class NavigationManager : MonoBehaviour
         return centerPoint + new Vector3(Random.Range(-3f, 3f), 5f, 0);
     }
 
-    // Find a valid position to spawn a flying enemy (new method)
     private Vector3 FindValidFlyingSpawnPosition()
     {
         // Define center point for spawning
@@ -365,6 +428,16 @@ public class NavigationManager : MonoBehaviour
 
         // List of candidate positions
         List<Vector3> candidatePositions = new List<Vector3>();
+
+        // Safety check for ground layer
+        if (groundLayer == 0)
+        {
+            Debug.LogWarning("NavigationManager: groundLayer not set for flying spawn position");
+            if (navigationGraph != null && navigationGraph.groundLayer != 0)
+            {
+                groundLayer = navigationGraph.groundLayer;
+            }
+        }
 
         // Try to find valid positions
         for (int i = 0; i < 30; i++)
@@ -403,28 +476,46 @@ public class NavigationManager : MonoBehaviour
 
             // Get ground height at this position
             Vector3 testPos = centerPoint + new Vector3(offset.x, offset.y, 0);
-            RaycastHit2D hit = Physics2D.Raycast(
-                testPos,
-                Vector2.down,
-                100f,
-                navigationGraph.groundLayer
-            );
-
             float groundHeight = 0;
-            if (hit.collider != null)
+
+            if (groundLayer != 0)
             {
-                groundHeight = hit.point.y;
+                RaycastHit2D hit = Physics2D.Raycast(
+                    testPos,
+                    Vector2.down,
+                    100f,
+                    groundLayer
+                );
+
+                if (hit.collider != null)
+                {
+                    groundHeight = hit.point.y;
+                }
+                else
+                {
+                    // No ground found, use a reasonable default
+                    groundHeight = centerPoint.y - 5f;
+                }
+            }
+            else
+            {
+                // No ground layer set, use center point as reference
+                groundHeight = centerPoint.y - 5f;
             }
 
             // Set position at proper height above ground
             Vector3 candidatePos = new Vector3(testPos.x, groundHeight + height, 0);
 
             // Check if position is clear of obstacles
-            bool positionClear = !Physics2D.OverlapCircle(
-                new Vector2(candidatePos.x, candidatePos.y),
-                1.0f,
-                navigationGraph.groundLayer
-            );
+            bool positionClear = true;
+            if (groundLayer != 0)
+            {
+                positionClear = !Physics2D.OverlapCircle(
+                    new Vector2(candidatePos.x, candidatePos.y),
+                    1.0f,
+                    groundLayer
+                );
+            }
 
             if (positionClear)
             {
@@ -435,7 +526,7 @@ public class NavigationManager : MonoBehaviour
                 {
                     foreach (Transform child in enemyContainer)
                     {
-                        if (Vector3.Distance(child.position, candidatePos) < 3f)
+                        if (child != null && Vector3.Distance(child.position, candidatePos) < 3f)
                         {
                             tooCloseToOtherEnemy = true;
                             break;
