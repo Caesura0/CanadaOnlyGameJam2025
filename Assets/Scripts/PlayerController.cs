@@ -53,8 +53,9 @@ public class PlayerController : MonoBehaviour
     private void PlayerHealth_OnPlayerDeath(object sender, EventArgs e)
     {
         isDead = true;
+        playerCollider.enabled = false;
         rb.velocity = Vector2.zero;
-        
+
     }
 
     private void Update()
@@ -75,6 +76,10 @@ public class PlayerController : MonoBehaviour
         playerAnimator.SetIsGrounded(isGrounded);  
     }
 
+    public bool GetIsDead()
+    {
+        return isDead;
+    }
     private void GatherInput()
     {
 

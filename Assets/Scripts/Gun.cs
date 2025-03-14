@@ -23,8 +23,8 @@ public class Gun : MonoBehaviour
     //State
     bool isReloading = false;
     bool isShooting = false;
-    int currentClipAmmo;
-    int currentHeldAmmo;
+    public int currentClipAmmo;
+    public int currentHeldAmmo;
 
     private void Start()
     {
@@ -39,9 +39,12 @@ public class Gun : MonoBehaviour
 
     private void Update()
     {
+        if (playerController.GetIsDead()) return;
         RotateGun();
 
     }
+
+
 
 
     public void StartReloadCoroutine()

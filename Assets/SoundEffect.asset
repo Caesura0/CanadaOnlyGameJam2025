@@ -30,7 +30,7 @@ MonoBehaviour:
   winSound: {fileID: 0}
   lowTimeAlertSound: {fileID: 0}
   addTimeSound: {fileID: 0}
-  mainMenuMusic: {fileID: 8300000, guid: 45c99a69992cef347b05309a98c9d6a5, type: 3}
-  gameplayMusic: {fileID: 8300000, guid: 18bcf311b05f7bf47a48ace50131b4f2, type: 3}
+  mainMenuMusic: {fileID: 8300000, guid: c909f4f841faf634e8280a036e11fbd4, type: 3}
+  gameplayMusic: {fileID: 8300000, guid: 178875baa18162747979a194c7e31bd0, type: 3}
   gameEndMusic: {fileID: 8300000, guid: 160a8897ce57bef43b8e08a6d22bb68c, type: 3}
   scoreScreenMusic: {fileID: 0}
