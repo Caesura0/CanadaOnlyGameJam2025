@@ -7,10 +7,12 @@ public class NavigationManager : MonoBehaviour
     [Header("References")]
     public NavigationGraph navigationGraph;
     public Transform playerTransform;
+    public ChunkManager chunkManager;
 
     [Header("Navigation Settings")]
     public LayerMask groundLayer;  // Define this on NavigationManager and pass to graph
     public string levelRootName = "LevelRoot";  // Name of level root object to find
+    public bool useChunkBasedNavigation = true; // Whether to use chunk-based navigation
 
     [Header("Enemy Spawning")]
     public GameObject[] groundEnemyPrefabs;  // Changed from enemyPrefabs
@@ -53,7 +55,6 @@ public class NavigationManager : MonoBehaviour
 
     private void Start()
     {
-
         InitializeComponents();
 
         if (navigationGraph != null)
@@ -66,6 +67,7 @@ public class NavigationManager : MonoBehaviour
             Debug.LogError("Navigation graph is null after initialization!");
             return;
         }
+
         // Spawn initial enemies after a delay to ensure graph is fully built
         if (spawnEnemiesOnStart)
         {
@@ -75,7 +77,18 @@ public class NavigationManager : MonoBehaviour
 
     private void InitializeComponents()
     {
-        // Find navigation graph if not set - TIME TO GET FUCKY
+        // Find chunk manager if not set
+        if (chunkManager == null && useChunkBasedNavigation)
+        {
+            chunkManager = FindObjectOfType<ChunkManager>();
+            if (chunkManager == null)
+            {
+                Debug.LogWarning("No ChunkManager found but useChunkBasedNavigation is enabled! Disabling chunk navigation.");
+                useChunkBasedNavigation = false;
+            }
+        }
+
+        // Find navigation graph if not set
         if (navigationGraph == null)
         {
             navigationGraph = FindObjectOfType<NavigationGraph>();
@@ -87,23 +100,12 @@ public class NavigationManager : MonoBehaviour
                 GameObject navGraphObj = new GameObject("NavigationGraph");
                 navigationGraph = navGraphObj.AddComponent<NavigationGraph>();
 
-                // Set some defaults hacker mans style cause i don't wanna decouple on night before game jam due
+                // Set up the NavigationGraph configuration
                 navigationGraph.groundLayer = groundLayer;
                 navigationGraph.nodeSpacing = 2f;
                 navigationGraph.nodeHeight = 1f;
-                // Find level root if needed
-                if (navigationGraph.levelRoot == null)
-                {
-                    Transform levelRoot = GameObject.Find(levelRootName)?.transform;
-                    if (levelRoot != null)
-                        navigationGraph.levelRoot = levelRoot;
-                }
-                // Build the navigation graph
-                navigationGraph.ClearAndRebuild();
-                Debug.Log("Navigation graph built successfully");
             }
         }
-
 
         // Find player if not set
         if (playerTransform == null)
@@ -486,6 +488,17 @@ public class NavigationManager : MonoBehaviour
         {
             Debug.Log("Rebuilding flight node network...");
             flightNodeGen.GenerateFlightNodes();
+        }
+    }
+
+    // New method to handle chunk updates
+    public void OnChunkAdded(GameObject chunk)
+    {
+        if (navigationGraph != null && useChunkBasedNavigation)
+        {
+            // The ProcessNewChunks method in NavigationGraph will handle this automatically
+            // This method is here for explicit notification if needed
+            Debug.Log($"Navigation Manager notified of new chunk: {chunk.name}");
         }
     }
 

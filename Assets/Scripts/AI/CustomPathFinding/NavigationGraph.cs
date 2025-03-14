@@ -6,11 +6,25 @@ using System.Linq;
 public class NavigationGraph : MonoBehaviour
 {
     [Header("Map Settings")]
-    public Transform levelRoot; // Parent object containing all level platforms
+    public Transform levelRoot; // Kept for backward compatibility
     public LayerMask groundLayer; // Layer for ground/solid platforms
     public float nodeSpacing = 2f; // Distance between nodes (samples)
     public float nodeHeight = 1f; // Vertical distance between nodes
     public float updateDistance = 2f; // Distance goal must move to update paths
+
+    [Header("Continuous Navigation")]
+    public bool useContinuousNavigation = true;
+    public float coverageRadius = 30f; // Generate nodes within this radius of player
+
+    [Header("Advanced Ground Detection")]
+    [Tooltip("How far to cast rays for ground detection")]
+    public float groundCheckDistance = 2.0f;
+    [Tooltip("Multiple scan heights improve detection of varied geometry")]
+    public float[] groundCheckHeights = new float[] { 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f };
+    [Tooltip("Radius of overlap checks for ground detection")]
+    public float groundCheckRadius = 0.3f;
+    [Tooltip("Debug visualization for ground detection")]
+    public bool visualizeGroundChecks = false;
 
     [Header("Debug Settings")]
     public bool visualizeGraph = true;
@@ -20,7 +34,8 @@ public class NavigationGraph : MonoBehaviour
     public Color pathColor = Color.cyan;
 
     // The graph representation - just base nodes for now, will add connector and fall nodes when we add jumping
-    private Dictionary<Vector2Int, NodeType> nodes = new Dictionary<Vector2Int, NodeType>();
+    // Made public to work with ContinuousNavigation
+    public Dictionary<Vector2Int, NodeType> nodes = new Dictionary<Vector2Int, NodeType>();
 
     // Cached paths (goalPosition -> path)
     private Dictionary<Vector2Int, Dictionary<Vector2Int, Vector2>> paths = new Dictionary<Vector2Int, Dictionary<Vector2Int, Vector2>>();
@@ -28,9 +43,269 @@ public class NavigationGraph : MonoBehaviour
     // Last goal position used for path calculation
     private Vector2Int lastGoalPos = Vector2Int.zero;
 
+    // Reference to player transform (for continuous navigation)
+    private Transform playerTransform;
+
     private void Start()
     {
-        BuildGraph();
+        // Find player for continuous navigation
+        if (useContinuousNavigation)
+        {
+            playerTransform = GameObject.FindGameObjectWithTag("Player")?.transform;
+            if (playerTransform == null)
+            {
+                Debug.LogWarning("No player found for continuous navigation! Falling back to standard mode.");
+                useContinuousNavigation = false;
+            }
+        }
+
+        if (useContinuousNavigation && playerTransform != null)
+        {
+            // Start with nodes around the player
+            Bounds playerBounds = new Bounds(playerTransform.position, new Vector3(coverageRadius * 2, coverageRadius * 2, 1f));
+            BuildGraphForBounds(playerBounds);
+        }
+        else
+        {
+            // Traditional build
+            BuildGraph();
+        }
+
+        if (visualizeGraph)
+        {
+            StartCoroutine(VisualizeGraphCoroutine());
+        }
+    }
+
+    private void Update()
+    {
+        if (useContinuousNavigation && playerTransform != null)
+        {
+            // Check if we need to generate more nodes around player
+            UpdateContinuousNavigation();
+        }
+    }
+
+    // Continuously update navigation around player
+    private void UpdateContinuousNavigation()
+    {
+        Vector2 playerPos = playerTransform.position;
+        Vector2Int playerGridPos = WorldToGrid(playerPos);
+
+        // Check if there are enough nodes around the player
+        List<Vector2Int> nearbyNodes = new List<Vector2Int>();
+
+        foreach (var nodePos in nodes.Keys)
+        {
+            if (Vector2.Distance(GridToWorld(nodePos), playerPos) <= coverageRadius)
+            {
+                nearbyNodes.Add(nodePos);
+            }
+        }
+
+        // If we don't have enough nodes nearby, generate more
+        if (nearbyNodes.Count < 20)
+        {
+            GenerateNodesAroundPosition(playerPos, coverageRadius);
+        }
+
+        // Clean up distant nodes periodically (every 5 seconds)
+        if (Time.frameCount % 300 == 0)
+        {
+            CleanupDistantNodes(playerPos, coverageRadius * 2);
+        }
+    }
+
+    private void GenerateNodesAroundPosition(Vector2 position, float radius)
+    {
+        Bounds bounds = new Bounds(position, new Vector3(radius * 2, radius * 2, 1f));
+
+        // Define grid bounds with generous padding
+        int minX = Mathf.FloorToInt((position.x - radius) / nodeSpacing) - 3;
+        int maxX = Mathf.CeilToInt((position.x + radius) / nodeSpacing) + 3;
+        int minY = Mathf.FloorToInt((position.y - radius) / nodeHeight) - 3;
+        int maxY = Mathf.CeilToInt((position.y + radius) / nodeHeight) + 8;
+
+        int nodesCreated = 0;
+
+        // Perform a dense scan of the area
+        for (int x = minX; x <= maxX; x++)
+        {
+            for (int y = minY; y <= maxY; y++)
+            {
+                Vector2Int gridPos = new Vector2Int(x, y);
+
+                // Skip if we already have this node
+                if (nodes.ContainsKey(gridPos))
+                    continue;
+
+                Vector2 worldPos = GridToWorld(gridPos);
+
+                // Skip if too far from center (using squared distance for performance)
+                float sqrDist = (worldPos - position).sqrMagnitude;
+                if (sqrDist > radius * radius * 1.2f) // 20% extra range
+                    continue;
+
+                // Comprehensive check for valid node position
+                if (IsValidNodePosition(worldPos))
+                {
+                    // Add a base node
+                    nodes[gridPos] = NodeType.Base;
+                    nodesCreated++;
+                }
+            }
+        }
+
+        // Create edge nodes for the new nodes
+        if (nodesCreated > 0)
+        {
+            CreateEdgeNodes();
+            Debug.Log($"Generated {nodesCreated} nodes around player");
+        }
+    }
+
+    // Comprehensive validity check for node positions
+    private bool IsValidNodePosition(Vector2 worldPos)
+    {
+        // 1. Check if the position itself is empty (not inside a collider)
+        bool positionClear = !Physics2D.OverlapCircle(worldPos, groundCheckRadius * 0.7f, groundLayer);
+        if (!positionClear)
+            return false;
+
+        // 2. Multi-height scan for ground below
+        bool foundGroundBelow = false;
+
+        // Scan at multiple heights
+        foreach (float heightOffset in groundCheckHeights)
+        {
+            Vector2 scanPos = new Vector2(worldPos.x, worldPos.y - heightOffset);
+
+            // Check with multiple methods
+            bool hitGround = Physics2D.OverlapCircle(scanPos, groundCheckRadius, groundLayer);
+
+            // If using debug visualization, draw the checked positions
+            if (visualizeGroundChecks && Application.isPlaying)
+            {
+                Color debugColor = hitGround ? Color.green : Color.red;
+                Debug.DrawLine(
+                    scanPos + Vector2.left * groundCheckRadius,
+                    scanPos + Vector2.right * groundCheckRadius,
+                    debugColor,
+                    0.1f
+                );
+                Debug.DrawLine(
+                    scanPos + Vector2.up * groundCheckRadius,
+                    scanPos + Vector2.down * groundCheckRadius,
+                    debugColor,
+                    0.1f
+                );
+            }
+
+            if (hitGround)
+            {
+                foundGroundBelow = true;
+                break;
+            }
+        }
+
+        // 3. Additional scan with BoxCast for better platform detection
+        if (!foundGroundBelow)
+        {
+            RaycastHit2D hit = Physics2D.BoxCast(
+                worldPos,
+                new Vector2(groundCheckRadius * 2, 0.1f),
+                0f,
+                Vector2.down,
+                groundCheckDistance,
+                groundLayer
+            );
+
+            foundGroundBelow = hit.collider != null;
+
+            if (visualizeGroundChecks && Application.isPlaying)
+            {
+                Color debugColor = foundGroundBelow ? Color.green : Color.red;
+                Debug.DrawLine(
+                    worldPos,
+                    worldPos + Vector2.down * groundCheckDistance,
+                    debugColor,
+                    0.1f
+                );
+            }
+        }
+
+        // 4. Fan of rays for uneven or thin platforms
+        if (!foundGroundBelow)
+        {
+            float[] angles = new float[] { -30f, -15f, 0f, 15f, 30f };
+            foreach (float angle in angles)
+            {
+                Vector2 direction = Quaternion.Euler(0, 0, angle) * Vector2.down;
+                RaycastHit2D hit = Physics2D.Raycast(worldPos, direction, groundCheckDistance, groundLayer);
+
+                if (visualizeGroundChecks && Application.isPlaying)
+                {
+                    Color debugColor = hit.collider != null ? Color.green : Color.red;
+                    Debug.DrawRay(worldPos, direction * groundCheckDistance, debugColor, 0.1f);
+                }
+
+                if (hit.collider != null)
+                {
+                    foundGroundBelow = true;
+                    break;
+                }
+            }
+        }
+
+        return positionClear && foundGroundBelow;
+    }
+
+    private void CleanupDistantNodes(Vector2 position, float maxDistance)
+    {
+        List<Vector2Int> nodesToRemove = new List<Vector2Int>();
+
+        foreach (var nodePos in nodes.Keys.ToList())
+        {
+            Vector2 worldPos = GridToWorld(nodePos);
+            if (Vector2.Distance(worldPos, position) > maxDistance)
+            {
+                nodesToRemove.Add(nodePos);
+            }
+        }
+
+        foreach (var nodePos in nodesToRemove)
+        {
+            nodes.Remove(nodePos);
+        }
+
+        // Also clean up paths that reference removed nodes
+        CleanupPaths();
+
+        if (nodesToRemove.Count > 0)
+        {
+            Debug.Log($"Removed {nodesToRemove.Count} distant nodes");
+        }
+    }
+
+    private void CleanupPaths()
+    {
+        List<Vector2Int> pathsToRemove = new List<Vector2Int>();
+
+        foreach (var kvp in paths)
+        {
+            Vector2Int goalPos = kvp.Key;
+
+            // Check if goal position node still exists
+            if (!nodes.ContainsKey(FindClosestNode(goalPos)))
+            {
+                pathsToRemove.Add(goalPos);
+            }
+        }
+
+        foreach (var goalPos in pathsToRemove)
+        {
+            paths.Remove(goalPos);
+        }
     }
 
     // Public method to convert world to grid coordinates
@@ -57,7 +332,70 @@ public class NavigationGraph : MonoBehaviour
         StopAllCoroutines();
         nodes.Clear();
         paths.Clear();
-        BuildGraph();
+
+        if (useContinuousNavigation && playerTransform != null)
+        {
+            // For continuous navigation, just build around the player
+            Bounds playerBounds = new Bounds(playerTransform.position, new Vector3(coverageRadius * 2, coverageRadius * 2, 1f));
+            BuildGraphForBounds(playerBounds);
+        }
+        else
+        {
+            // Traditional build
+            BuildGraph();
+        }
+
+        if (visualizeGraph)
+        {
+            StartCoroutine(VisualizeGraphCoroutine());
+        }
+    }
+
+    // Build graph for specific bounds
+    public void BuildGraphForBounds(Bounds bounds)
+    {
+        // Define grid range based on bounds with extra padding
+        int minX = Mathf.FloorToInt(bounds.min.x / nodeSpacing) - 3;
+        int maxX = Mathf.CeilToInt(bounds.max.x / nodeSpacing) + 3;
+        int minY = Mathf.FloorToInt(bounds.min.y / nodeHeight) - 3;
+        int maxY = Mathf.CeilToInt(bounds.max.y / nodeHeight) + 8;
+
+        int nodesCreated = 0;
+
+        // Scan the grid within bounds
+        for (int x = minX; x <= maxX; x++)
+        {
+            for (int y = minY; y <= maxY; y++)
+            {
+                Vector2Int gridPos = new Vector2Int(x, y);
+
+                // Skip if already has a node
+                if (nodes.ContainsKey(gridPos))
+                    continue;
+
+                Vector2 worldPos = GridToWorld(gridPos);
+
+                // Skip if outside bounds with padding
+                if (worldPos.x < bounds.min.x - 3f || worldPos.x > bounds.max.x + 3f ||
+                    worldPos.y < bounds.min.y - 3f || worldPos.y > bounds.max.y + 8f)
+                {
+                    continue;
+                }
+
+                // Use the comprehensive check
+                if (IsValidNodePosition(worldPos))
+                {
+                    // Add a base node
+                    nodes[gridPos] = NodeType.Base;
+                    nodesCreated++;
+                }
+            }
+        }
+
+        // Create edge nodes
+        CreateEdgeNodes();
+
+        Debug.Log($"Created {nodesCreated} nodes for bounds {bounds.min} to {bounds.max}");
     }
 
     // Get node type at a specific grid position
@@ -68,15 +406,10 @@ public class NavigationGraph : MonoBehaviour
             return nodeType;
         }
 
-        // If not found in dictionary, check if it's over ground - if so, 
-        // it's effectively a base node for pathfinding purposes
+        // If not found in dictionary, check if it's a valid position
         Vector2 worldPos = GridToWorld(gridPos);
-        Vector2 belowPos = worldPos + Vector2.down * nodeHeight * 0.6f;
 
-        bool isEmpty = !Physics2D.OverlapCircle(worldPos, 0.1f, groundLayer);
-        bool hasGroundBelow = Physics2D.OverlapCircle(belowPos, 0.1f, groundLayer);
-
-        if (isEmpty && hasGroundBelow)
+        if (IsValidNodePosition(worldPos))
         {
             return NodeType.Base;
         }
@@ -96,13 +429,6 @@ public class NavigationGraph : MonoBehaviour
         CreateEdgeNodes();
 
         Debug.Log($"Navigation graph built with {nodes.Count} nodes");
-
-        if (visualizeGraph)
-        {
-            StartCoroutine(VisualizeGraphCoroutine());
-        }
-
-        Debug.Log($"Ground Layer mask: {groundLayer.value}");
     }
 
     // Create initial nodes for empty spaces with ground underneath
@@ -110,54 +436,12 @@ public class NavigationGraph : MonoBehaviour
     {
         // Define boundaries of the level
         Bounds levelBounds = CalculateLevelBounds();
-        int minX = Mathf.FloorToInt(levelBounds.min.x / nodeSpacing) - 2; // Add padding
-        int maxX = Mathf.CeilToInt(levelBounds.max.x / nodeSpacing) + 2;
-        int minY = Mathf.FloorToInt(levelBounds.min.y / nodeHeight) - 2;
-        int maxY = Mathf.CeilToInt(levelBounds.max.y / nodeHeight) + 5; // More vertical padding
-
-        // Track created nodes
-        int baseNodesCreated = 0;
-
-        // Increase detection radius
-        float detectionRadius = 0.25f;  // Increased from 0.1f
-
-        // Scan the level grid with smaller steps for more precision
-        float scanStep = 0.5f;  // Scan at half the normal spacing for better coverage
-
-        for (float x = minX * nodeSpacing; x <= maxX * nodeSpacing; x += nodeSpacing * scanStep)
-        {
-            for (float y = minY * nodeHeight; y <= maxY * nodeHeight; y += nodeHeight * scanStep)
-            {
-                Vector2 worldPos = new Vector2(x, y);
-                Vector2 belowPos = worldPos + Vector2.down * nodeHeight * 0.6f;
-
-                // If current position is empty and position below has ground
-                bool isEmpty = !Physics2D.OverlapCircle(worldPos, detectionRadius, groundLayer);
-                bool hasGroundBelow = Physics2D.OverlapCircle(belowPos, detectionRadius, groundLayer);
-
-                if (isEmpty && hasGroundBelow)
-                {
-                    // Convert to grid position
-                    Vector2Int gridPos = WorldToGrid(worldPos);
-
-                    // Only add if not already added
-                    if (!nodes.ContainsKey(gridPos))
-                    {
-                        // Add a base node
-                        nodes[gridPos] = NodeType.Base;
-                        baseNodesCreated++;
-                    }
-                }
-            }
-        }
-
-        Debug.Log($"Created {baseNodesCreated} base nodes");
+        BuildGraphForBounds(levelBounds);
     }
 
     // Create connector nodes at the edges of platforms for better visualization
     private void CreateEdgeNodes()
     {
-        Dictionary<Vector2Int, NodeType> edgeNodes = new Dictionary<Vector2Int, NodeType>();
         int edgeNodesCreated = 0;
 
         // Look at each base node
@@ -169,18 +453,10 @@ public class NavigationGraph : MonoBehaviour
             if (kvp.Value != NodeType.Base)
                 continue;
 
-            // Check right neighbor
-            Vector2Int rightPos = new Vector2Int(pos.x + 1, pos.y);
-            bool hasRightNeighbor = nodes.ContainsKey(rightPos) ||
-                                    Physics2D.OverlapCircle(GridToWorld(rightPos), 0.1f, groundLayer);
+            // Enhanced edge detection logic
+            bool isEdge = IsEdgeNode(pos);
 
-            // Check left neighbor
-            Vector2Int leftPos = new Vector2Int(pos.x - 1, pos.y);
-            bool hasLeftNeighbor = nodes.ContainsKey(leftPos) ||
-                                   Physics2D.OverlapCircle(GridToWorld(leftPos), 0.1f, groundLayer);
-
-            // If this is an edge node (missing either left or right neighbor)
-            if (!hasRightNeighbor || !hasLeftNeighbor)
+            if (isEdge)
             {
                 // Mark it as an edge/connector node
                 nodes[pos] = NodeType.Edge;
@@ -188,49 +464,99 @@ public class NavigationGraph : MonoBehaviour
             }
         }
 
-        Debug.Log($"Created {edgeNodesCreated} edge nodes");
+        if (edgeNodesCreated > 0)
+        {
+            Debug.Log($"Created {edgeNodesCreated} edge nodes");
+        }
     }
 
+    // Comprehensive edge detection
+    private bool IsEdgeNode(Vector2Int pos)
+    {
+        // Directions to check (8-way)
+        Vector2Int[] directions = new Vector2Int[]
+        {
+            Vector2Int.left,
+            Vector2Int.right,
+            Vector2Int.up,
+            Vector2Int.down,
+            new Vector2Int(-1, -1), // bottom-left
+            new Vector2Int(1, -1),  // bottom-right
+            new Vector2Int(-1, 1),  // top-left
+            new Vector2Int(1, 1)    // top-right
+        };
+
+        int emptyNeighbors = 0;
+        int totalChecks = 0;
+
+        // Check each direction
+        foreach (Vector2Int dir in directions)
+        {
+            Vector2Int neighborPos = pos + dir;
+
+            // Skip vertical/diagonal checks for standard edge detection
+            if (dir != Vector2Int.left && dir != Vector2Int.right)
+                continue;
+
+            totalChecks++;
+
+            // Check if this position has a node
+            bool hasNode = nodes.ContainsKey(neighborPos);
+
+            // If no node exists, check if it could be a valid node position
+            if (!hasNode)
+            {
+                Vector2 neighborWorldPos = GridToWorld(neighborPos);
+                bool isValidPosition = Physics2D.OverlapCircle(neighborWorldPos, groundCheckRadius, groundLayer);
+
+                // Count if it's an empty space (not valid for a node)
+                if (!isValidPosition)
+                {
+                    emptyNeighbors++;
+                }
+            }
+        }
+
+        // If any horizontal neighbors are empty, it's an edge
+        return emptyNeighbors > 0;
+    }
+
+    // Calculate the bounds of the level for graph generation
     private Bounds CalculateLevelBounds()
     {
+        if (useContinuousNavigation && playerTransform != null)
+        {
+            // Use player-centered bounds for continuous navigation
+            return new Bounds(playerTransform.position, new Vector3(coverageRadius * 2, coverageRadius * 2, 1f));
+        }
+
         if (levelRoot == null)
         {
-            // If levelRoot is not set, try to find all objects in the ground layer
-            Debug.LogWarning("LevelRoot not set, attempting to find all ground objects");
-            Bounds levelBounds = new Bounds(Vector3.zero, Vector3.zero);
-            bool foundAny = false;
-
-            // Find all colliders in the ground layer
+            // Try to find ground objects if no level root
+            Debug.LogWarning("No level root set, looking for ground objects");
             Collider2D[] groundColliders = Physics2D.OverlapAreaAll(
                 new Vector2(-1000, -1000),
                 new Vector2(1000, 1000),
-                groundLayer);
+                groundLayer
+            );
 
             if (groundColliders.Length > 0)
             {
-                levelBounds = new Bounds(groundColliders[0].bounds.center, groundColliders[0].bounds.size);
-                foundAny = true;
+                Bounds bounds = new Bounds(groundColliders[0].bounds.center, groundColliders[0].bounds.size);
 
                 for (int i = 1; i < groundColliders.Length; i++)
                 {
-                    levelBounds.Encapsulate(groundColliders[i].bounds);
+                    bounds.Encapsulate(groundColliders[i].bounds);
                 }
+
+                bounds.Expand(10f);
+                return bounds;
             }
 
-            if (!foundAny)
-            {
-                Debug.LogError("Could not find any ground colliders! Using default bounds.");
-                return new Bounds(Vector3.zero, Vector3.one * 100);
-            }
-
-            // Expand bounds
-            //bounds.Expand(10f);
-            Debug.Log($"Level bounds: min({levelBounds.min}), max({levelBounds.max}), size({levelBounds.size})");
-            return levelBounds;
+            return new Bounds(Vector3.zero, Vector3.one * 100); // Default large bounds
         }
 
-        // Original implementation for when levelRoot is set
-        Bounds bounds = new Bounds(levelRoot.position, Vector3.zero);
+        Bounds levelBounds = new Bounds(levelRoot.position, Vector3.zero);
         Collider2D[] colliders = levelRoot.GetComponentsInChildren<Collider2D>();
 
         if (colliders.Length == 0)
@@ -239,21 +565,21 @@ public class NavigationGraph : MonoBehaviour
             Renderer[] renderers = levelRoot.GetComponentsInChildren<Renderer>();
             foreach (Renderer renderer in renderers)
             {
-                bounds.Encapsulate(renderer.bounds);
+                levelBounds.Encapsulate(renderer.bounds);
             }
         }
         else
         {
             foreach (Collider2D collider in colliders)
             {
-                bounds.Encapsulate(collider.bounds);
+                levelBounds.Encapsulate(collider.bounds);
             }
         }
 
-        // Expand bounds a bit more
-        bounds.Expand(10f);
+        // Expand bounds a bit
+        levelBounds.Expand(10f);
 
-        return bounds;
+        return levelBounds;
     }
 
     // Generate or retrieve a path to the goal
@@ -424,7 +750,21 @@ public class NavigationGraph : MonoBehaviour
 
         if (path.Count == 0)
         {
-            return GetFallbackMovementAction(entityWorldPos, goalWorldPos);
+            // If continuous navigation is active, try to generate nodes at the goal position
+            if (useContinuousNavigation && Vector2.Distance(entityWorldPos, goalWorldPos) < coverageRadius * 1.5f)
+            {
+                GenerateNodesAroundPosition(goalWorldPos, 5f);
+                path = GetPathToGoal(goalWorldPos);
+
+                if (path.Count == 0)
+                {
+                    return GetFallbackMovementAction(entityWorldPos, goalWorldPos);
+                }
+            }
+            else
+            {
+                return GetFallbackMovementAction(entityWorldPos, goalWorldPos);
+            }
         }
 
         // Find closest node to entity
@@ -497,6 +837,20 @@ public class NavigationGraph : MonoBehaviour
         else
         {
             return MovementAction.Idle;
+        }
+    }
+
+    // Helper method to manually add nodes for debugging
+    public void AddManualNode(Vector2 worldPosition)
+    {
+        Vector2Int gridPos = WorldToGrid(worldPosition);
+        if (!nodes.ContainsKey(gridPos))
+        {
+            nodes[gridPos] = NodeType.Base;
+            Debug.Log($"Manually added node at {worldPosition} (grid: {gridPos})");
+
+            // Update edge nodes
+            CreateEdgeNodes();
         }
     }
 
@@ -620,6 +974,31 @@ public class NavigationGraph : MonoBehaviour
             }
 
             yield return new WaitForSeconds(0.2f);
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (playerTransform != null && useContinuousNavigation)
+        {
+            // Draw the coverage radius
+            Gizmos.color = new Color(0.2f, 0.8f, 0.2f, 0.1f);
+            Gizmos.DrawWireSphere(playerTransform.position, coverageRadius);
+        }
+
+        if (!Application.isPlaying || !visualizeGroundChecks)
+            return;
+
+        // Visualize ground check heights around player
+        if (playerTransform != null)
+        {
+            Gizmos.color = Color.yellow;
+            Vector3 playerPos = playerTransform.position;
+
+            foreach (float height in groundCheckHeights)
+            {
+                Gizmos.DrawWireSphere(new Vector3(playerPos.x, playerPos.y - height, 0), groundCheckRadius);
+            }
         }
     }
 }
