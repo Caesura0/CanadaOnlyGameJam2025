@@ -13,7 +13,8 @@ public class DialogueTrigger : MonoBehaviour
     
 
     List<Dialogue> validDialogueList;
- 
+
+
 
     private void Start()
     {

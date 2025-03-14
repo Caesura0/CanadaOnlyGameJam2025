@@ -6,6 +6,7 @@ public class ChunkManager : MonoBehaviour
 {
     [SerializeField] List<Chunk> chunkPrefabs; 
     [SerializeField] List<Chunk> startingChunkPrefabs; 
+    [SerializeField] Chunk bossChunk; 
     [SerializeField] Transform player;
     [SerializeField] int chunksToSpawn = 3;
     [SerializeField] float chunkLength = 10f;
@@ -16,7 +17,7 @@ public class ChunkManager : MonoBehaviour
     float spawnX = 0f;
 
     int chunksSpawned;
-
+    bool hasSpawnedBoss = false;
 
 
     void Start()
@@ -37,6 +38,11 @@ public class ChunkManager : MonoBehaviour
 
     void Update()
     {
+        if (hasSpawnedBoss)
+        {
+            return;
+        }
+
         if (player.position.x > spawnX - (chunksToSpawn * chunkLength))
         {
             SpawnChunk();
@@ -45,7 +51,7 @@ public class ChunkManager : MonoBehaviour
         }
 
     }
-
+    
 
     void SpawnChunk()
     {
@@ -60,9 +66,22 @@ public class ChunkManager : MonoBehaviour
 
     Chunk ChooseChunkToSpawn()
     {
+        if(chunksSpawned >= 10)
+        {
+            Chunk chunk = SpawnBossChunk();
+            return chunk;
+        }
         int chunkIndex = Random.Range(0, chunkPrefabs.Count);
         return chunkPrefabs[chunkIndex];
     }
+
+    private Chunk SpawnBossChunk()
+    {
+
+        hasSpawnedBoss = true;
+        return bossChunk;
+    }
+
     void RemoveOldChunk()
     {
         if (activeChunks.Count > chunksToSpawn +2 )

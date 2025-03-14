@@ -99,7 +99,7 @@ public class AudioManager : MonoBehaviour
         audioSource.PlayOneShot(soundManager.pickupPointsSound, soundEffectVolume);
     }
 
-    public void PlayPickupBigPointsSound()
+    public void PlayPickupBigPointsSux0ound()
     {
         audioSource.PlayOneShot(soundManager.pickupBigPointsSound, soundEffectVolume);
     }

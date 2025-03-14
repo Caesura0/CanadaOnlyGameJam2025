@@ -5,6 +5,7 @@ using UnityEngine;
 public class DialogueCollider : MonoBehaviour
 {
     DialogueTrigger dialogueTrigger;
+    bool hasSaidDialogue;
     private void Start()
     {
         dialogueTrigger = GetComponent<DialogueTrigger>();
@@ -12,8 +13,9 @@ public class DialogueCollider : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (collision.CompareTag("Player"))
+        if (collision.CompareTag("Player") && !hasSaidDialogue)
         {
+            hasSaidDialogue = true;
             dialogueTrigger.Interact(collision.gameObject);
         }
     }
