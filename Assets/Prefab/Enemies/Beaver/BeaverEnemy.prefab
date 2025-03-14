@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 6859160451906901681}
   - component: {fileID: 8446212903504026073}
   - component: {fileID: 1754067978289039917}
+  - component: {fileID: 7036037017115295570}
   m_Layer: 0
   m_Name: BeaverEnemy
   m_TagString: Untagged
@@ -196,3 +197,16 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &7036037017115295570
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2362418385106534676}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62872fc2821ae2946b79522a0f60c744, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 3
