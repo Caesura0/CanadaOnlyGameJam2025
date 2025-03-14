@@ -19,6 +19,13 @@ public class EnemyBaseController : MonoBehaviour
     public float pathfindingUpdateRate = 0.5f;
     public float detectionRange = 10f;       // How far away the enemy can see the player
     public float loseTrackRange = 15f;       // How far the enemy will chase before losing the player
+    public bool respectEdges = true;         // Whether the enemy should stop at platform edges
+    public float edgeDetectionCooldown = 1f; // Cooldown after detecting an edge to prevent flipping back and forth
+
+    [Header("Edge Detection")]
+    public float edgeCheckDistance = 0.5f;   // How far ahead to check for edges
+    public float edgeRayLength = 1.5f;       // How far down to check for ground
+    public bool debugEdgeDetection = true;   // Whether to show debug information for edge detection
 
     [Header("Patrol Settings")]
     public bool usePatrolPoints = false;
@@ -43,15 +50,21 @@ public class EnemyBaseController : MonoBehaviour
     protected bool isGrounded;
     protected bool facingRight = true;
 
+    // Edge detection state
+    protected float lastEdgeDetectionTime = 0f;
+    protected float lastDirectionChangeTime = 0f;
+    protected int consecutiveEdgeDetections = 0;
+    protected bool atEdge = false;
+
     protected virtual void Start()
     {
-
         // Get the EnemyHealth component and subscribe to its instance event
         EnemyHealth healthComponent = GetComponent<EnemyHealth>();
         if (healthComponent != null)
         {
             healthComponent.OnZombieTranquilized += EnemyHealth_OnZombieTranquilized;
         }
+
         // Get and configure the rigidbody
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
@@ -64,6 +77,7 @@ public class EnemyBaseController : MonoBehaviour
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         }
 
+        // Find SpriteRenderer component
         spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (spriteRenderer == null)
         {
@@ -114,6 +128,12 @@ public class EnemyBaseController : MonoBehaviour
         //if (isTranquilized) return;
         UpdateGroundedState();
         UpdatePathfinding();
+
+        // Check for edges directly in Update to ensure it runs every frame
+        if (respectEdges)
+        {
+            CheckForEdges();
+        }
     }
 
     protected virtual void FixedUpdate()
@@ -143,23 +163,30 @@ public class EnemyBaseController : MonoBehaviour
             );
 
             // Visualize ground check
-            Debug.DrawLine(
-                checkPosition - new Vector2(rayWidth / 2, 0),
-                checkPosition + new Vector2(rayWidth / 2, 0),
-                isGrounded ? Color.green : Color.red
-            );
-            Debug.DrawLine(
-                checkPosition,
-                checkPosition + Vector2.down * groundCheckDistance,
-                isGrounded ? Color.green : Color.red
-            );
+            if (debugEdgeDetection)
+            {
+                Debug.DrawLine(
+                    checkPosition - new Vector2(rayWidth / 2, 0),
+                    checkPosition + new Vector2(rayWidth / 2, 0),
+                    isGrounded ? Color.green : Color.red
+                );
+                Debug.DrawLine(
+                    checkPosition,
+                    checkPosition + Vector2.down * groundCheckDistance,
+                    isGrounded ? Color.green : Color.red
+                );
+            }
         }
         else
         {
             // Fallback if no collider found
             Vector2 checkPosition = new Vector2(transform.position.x, transform.position.y - 0.5f);
             isGrounded = Physics2D.Raycast(checkPosition, Vector2.down, groundCheckDistance, groundLayer);
-            Debug.DrawRay(checkPosition, Vector2.down * groundCheckDistance, isGrounded ? Color.green : Color.red);
+
+            if (debugEdgeDetection)
+            {
+                Debug.DrawRay(checkPosition, Vector2.down * groundCheckDistance, isGrounded ? Color.green : Color.red);
+            }
         }
     }
 
@@ -176,10 +203,149 @@ public class EnemyBaseController : MonoBehaviour
         lastPathUpdateTime = Time.time;
     }
 
+    // New method to directly check for edges
+    protected virtual void CheckForEdges()
+    {
+        if (!isGrounded) return;
+
+        // Get the movement direction
+        float movementDir = 0f;
+
+        if (currentAction == MovementAction.MoveRight)
+        {
+            movementDir = 1f;
+        }
+        else if (currentAction == MovementAction.MoveLeft)
+        {
+            movementDir = -1f;
+        }
+        else if (currentState == EnemyState.Chase && target != null)
+        {
+            movementDir = Mathf.Sign(target.position.x - transform.position.x);
+        }
+
+        // Don't check if not moving
+        if (Mathf.Abs(movementDir) < 0.1f)
+        {
+            atEdge = false;
+            return;
+        }
+
+        // Only check for edges at a certain interval
+        if (Time.time < lastEdgeDetectionTime + edgeDetectionCooldown)
+        {
+            return;
+        }
+
+        Collider2D collider = GetComponent<Collider2D>();
+        if (collider == null) return;
+
+        // Calculate the position to check for an edge
+        Vector2 bottomPosition = new Vector2(
+            collider.bounds.center.x + (collider.bounds.extents.x * movementDir) + (edgeCheckDistance * movementDir),
+            collider.bounds.min.y + 0.1f
+        );
+
+        // Cast a ray downward to check for ground
+        RaycastHit2D hit = Physics2D.Raycast(bottomPosition, Vector2.down, edgeRayLength, groundLayer);
+
+        // Visualize the raycast
+        if (debugEdgeDetection)
+        {
+            Debug.DrawRay(bottomPosition, Vector2.down * edgeRayLength, hit.collider != null ? Color.green : Color.red);
+
+            // Draw a cross at the check position
+            float debugSize = 0.2f;
+            Debug.DrawLine(
+                new Vector3(bottomPosition.x - debugSize, bottomPosition.y, 0),
+                new Vector3(bottomPosition.x + debugSize, bottomPosition.y, 0),
+                hit.collider != null ? Color.green : Color.red
+            );
+            Debug.DrawLine(
+                new Vector3(bottomPosition.x, bottomPosition.y - debugSize, 0),
+                new Vector3(bottomPosition.x, bottomPosition.y + debugSize, 0),
+                hit.collider != null ? Color.green : Color.red
+            );
+        }
+
+        // If no ground detected, we're at an edge
+        atEdge = hit.collider == null;
+
+        if (atEdge && !isTranquilized)
+        {
+            lastEdgeDetectionTime = Time.time;
+
+            // Handle edge detection
+            HandleEdgeDetection(movementDir);
+        }
+    }
+
+    // New method to handle edge detection response
+    protected virtual void HandleEdgeDetection(float movementDir)
+    {
+        // We've detected an edge
+        if (debugEdgeDetection)
+        {
+            Debug.Log($"{gameObject.name} detected an edge, moving direction: {movementDir}");
+        }
+
+        // Immediately stop horizontal movement
+        rb.velocity = new Vector2(0, rb.velocity.y);
+
+        // If in chase mode and we hit an edge, check if player is below
+        if (currentState == EnemyState.Chase)
+        {
+            if (IsTargetOnLowerPlatform())
+            {
+                // For now, just stop at the edge - in future could add jump down behavior
+                // This is where you would add jumping logic in the future!
+                if (debugEdgeDetection)
+                {
+                    Debug.DrawLine(transform.position, target.position, Color.yellow, 0.1f);
+                    Debug.Log($"{gameObject.name} sees player on lower platform, considering jump");
+                }
+            }
+            else
+            {
+                // If chasing and hit edge, update patrol target to go the other way
+                // This prevents flipping back and forth
+                consecutiveEdgeDetections++;
+
+                if (consecutiveEdgeDetections > 2)
+                {
+                    // If we keep hitting edges, switch to patrol mode temporarily
+                    SwitchState(EnemyState.Patrol);
+                    consecutiveEdgeDetections = 0;
+                }
+                else
+                {
+                    // Flip direction
+                    FlipSpriteDirectly(!facingRight);
+                }
+            }
+        }
+        else if (currentState == EnemyState.Patrol)
+        {
+            // For patrol, just update the patrol target to go the other way
+            FlipSpriteDirectly(!facingRight);
+            UpdatePatrolTarget();
+
+            // Reset this counter when in patrol mode
+            consecutiveEdgeDetections = 0;
+        }
+    }
+
     protected virtual void ExecuteMovement()
     {
-        if (!isGrounded)
+        if (!isGrounded || isTranquilized)
             return;
+
+        // Don't move if at an edge
+        if (atEdge && respectEdges)
+        {
+            rb.velocity = new Vector2(0, rb.velocity.y);
+            return;
+        }
 
         // Calculate target velocity based on current action
         float targetVelocityX = 0f;
@@ -188,14 +354,14 @@ public class EnemyBaseController : MonoBehaviour
         {
             case MovementAction.MoveRight:
                 targetVelocityX = moveSpeed;
-                if (faceMovementDirection && !facingRight)
-                    FlipSprite();
+                if (faceMovementDirection)
+                    FlipSpriteDirectly(true);
                 break;
 
             case MovementAction.MoveLeft:
                 targetVelocityX = -moveSpeed;
-                if (faceMovementDirection && facingRight)
-                    FlipSprite();
+                if (faceMovementDirection)
+                    FlipSpriteDirectly(false);
                 break;
 
             case MovementAction.Idle:
@@ -208,92 +374,30 @@ public class EnemyBaseController : MonoBehaviour
 
                     if (faceMovementDirection)
                     {
-                        if (dirToTarget > 0 && !facingRight || dirToTarget < 0 && facingRight)
-                            FlipSprite();
+                        FlipSpriteDirectly(dirToTarget > 0);
                     }
                 }
                 break;
         }
 
-        // Apply velocity
+        // Apply velocity only if we're not at an edge
         rb.velocity = new Vector2(targetVelocityX, rb.velocity.y);
     }
 
-    // Flag to prevent multiple flips while turning
-    protected bool isFlipping = false;
-    // Stored direction for pending flip
-    protected bool flipToFaceRight;
-
-    protected virtual void FlipSprite()
+    // Simple direct sprite flipping 
+    protected virtual void FlipSpriteDirectly(bool faceRight)
     {
-        // Prevent multiple flips while already flipping
-        if (isFlipping)
-            return;
-
-        // Store the intended flip direction
-        flipToFaceRight = !facingRight;
-
-        // Get animator if we have one
-        Animator animator = GetComponent<Animator>();
-        if (animator == null)
+        // Only flip if we're changing direction
+        if (facingRight != faceRight)
         {
-            animator = GetComponentInChildren<Animator>();
-        }
-
-        if (animator != null)
-        {
-            try
+            facingRight = faceRight;
+            if (spriteRenderer != null)
             {
-                isFlipping = true;
-                animator.SetTrigger("Turn");
-                // Safety fallback in case animation event doesn't fire
-                StartCoroutine(FlipSafetyFallback());
-                return;
+                spriteRenderer.flipX = !facingRight;
             }
-            catch (System.Exception)
-            {
-                // If there's an error, just do the immediate flip
-                isFlipping = false;
-            }
-        }
 
-        // If no animator or error, just do immediate flip
-        DoFlip(flipToFaceRight);
-    }
-
-    // The actual flip logic
-    protected virtual void DoFlip(bool toFaceRight)
-    {
-        facingRight = toFaceRight;
-
-        // Option 1: If using spriteRenderer.flipX
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.flipX = !facingRight;
-        }
-    }
-
-    public void OnTurnAnimationFlip()
-    {
-        DoFlip(flipToFaceRight);
-    }
-
-    public void OnTurnAnimationComplete()
-    {
-        isFlipping = false;
-    }
-
-    protected IEnumerator FlipSafetyFallback()
-    {
-        // Wait for anim to complete
-        yield return new WaitForSeconds(0.2f);
-
-        // If still flipping, force completion
-        if (isFlipping)
-        {
-            DoFlip(flipToFaceRight);
-            isFlipping = false;
-            Debug.LogWarning("Turn animation did not trigger flip event - used fallback");
+            // Record when we last changed direction
+            lastDirectionChangeTime = Time.time;
         }
     }
 
@@ -390,6 +494,30 @@ public class EnemyBaseController : MonoBehaviour
         return distanceToTarget <= detectionRange;
     }
 
+    // Helper method to check if the target is on a lower platform
+    protected virtual bool IsTargetOnLowerPlatform()
+    {
+        if (target == null)
+            return false;
+
+        // Check if target is significantly below the enemy
+        float heightDifference = transform.position.y - target.position.y;
+
+        if (heightDifference < 1.0f)
+            return false;
+
+        // Check if there's platform beneath the target (to ensure they're on a platform)
+        RaycastHit2D targetGroundHit = Physics2D.Raycast(target.position, Vector2.down, 1.0f, groundLayer);
+
+        // Visualize the ray
+        if (debugEdgeDetection)
+        {
+            Debug.DrawRay(target.position, Vector2.down * 1.0f, targetGroundHit.collider != null ? Color.blue : Color.red);
+        }
+
+        return targetGroundHit.collider != null;
+    }
+
     protected virtual void UpdatePatrolTarget()
     {
         if (usePatrolPoints && patrolPoints.Length > 0)
@@ -402,9 +530,10 @@ public class EnemyBaseController : MonoBehaviour
         }
         else
         {
-            if (Vector2.Distance(transform.position, patrolTarget) < 1f)
+            if (Vector2.Distance(transform.position, patrolTarget) < 1f ||
+                Time.time - lastDirectionChangeTime < 2f) // Also update if we recently changed direction
             {
-                float direction = Mathf.Sign(UnityEngine.Random.Range(-1f, 1f));
+                float direction = facingRight ? 1 : -1; // Use current facing direction
                 patrolTarget = startPosition + new Vector2(direction * patrolDistance, 0);
 
                 // Check if the patrol target is over ground
@@ -415,7 +544,21 @@ public class EnemyBaseController : MonoBehaviour
                 }
                 else
                 {
-                    patrolTarget = startPosition;
+                    // If no ground found in that direction, try the opposite
+                    direction *= -1;
+                    patrolTarget = startPosition + new Vector2(direction * patrolDistance, 0);
+
+                    // Check again
+                    hit = Physics2D.Raycast(patrolTarget, Vector2.down, 3f, groundLayer);
+                    if (hit.collider != null)
+                    {
+                        patrolTarget.y = hit.point.y + 0.5f;
+                    }
+                    else
+                    {
+                        // If still no ground, just stay near start
+                        patrolTarget = startPosition;
+                    }
                 }
             }
         }
@@ -449,6 +592,32 @@ public class EnemyBaseController : MonoBehaviour
                 {
                     Gizmos.DrawSphere(point.position, 0.3f);
                 }
+            }
+        }
+
+        // Draw edge detection rays
+        if (debugEdgeDetection && Application.isPlaying)
+        {
+            Collider2D collider = GetComponent<Collider2D>();
+            if (collider != null)
+            {
+                // Draw for both directions
+                Vector2 leftCheckPos = new Vector2(
+                    collider.bounds.center.x - collider.bounds.extents.x - edgeCheckDistance,
+                    collider.bounds.min.y + 0.1f
+                );
+
+                Vector2 rightCheckPos = new Vector2(
+                    collider.bounds.center.x + collider.bounds.extents.x + edgeCheckDistance,
+                    collider.bounds.min.y + 0.1f
+                );
+
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(leftCheckPos, leftCheckPos + Vector2.down * edgeRayLength);
+                Gizmos.DrawLine(rightCheckPos, rightCheckPos + Vector2.down * edgeRayLength);
+
+                Gizmos.DrawWireSphere(leftCheckPos, 0.1f);
+                Gizmos.DrawWireSphere(rightCheckPos, 0.1f);
             }
         }
     }

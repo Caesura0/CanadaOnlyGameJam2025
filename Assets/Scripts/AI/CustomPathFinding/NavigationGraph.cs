@@ -8,8 +8,8 @@ public class NavigationGraph : MonoBehaviour
     [Header("Map Settings")]
     public Transform levelRoot; // Parent object containing all level platforms
     public LayerMask groundLayer; // Layer for ground/solid platforms
-    public float nodeSpacing = 3f; // Distance between nodes (samples)
-    public float nodeHeight = 3f; // Vertical distance between nodes
+    public float nodeSpacing = 2f; // Distance between nodes (samples)
+    public float nodeHeight = 1f; // Vertical distance between nodes
     public float updateDistance = 2f; // Distance goal must move to update paths
 
     [Header("Debug Settings")]
@@ -101,6 +101,8 @@ public class NavigationGraph : MonoBehaviour
         {
             StartCoroutine(VisualizeGraphCoroutine());
         }
+
+        Debug.Log($"Ground Layer mask: {groundLayer.value}");
     }
 
     // Create initial nodes for empty spaces with ground underneath
@@ -116,23 +118,35 @@ public class NavigationGraph : MonoBehaviour
         // Track created nodes
         int baseNodesCreated = 0;
 
-        // Scan the level grid
-        for (int x = minX; x <= maxX; x++)
+        // Increase detection radius
+        float detectionRadius = 0.25f;  // Increased from 0.1f
+
+        // Scan the level grid with smaller steps for more precision
+        float scanStep = 0.5f;  // Scan at half the normal spacing for better coverage
+
+        for (float x = minX * nodeSpacing; x <= maxX * nodeSpacing; x += nodeSpacing * scanStep)
         {
-            for (int y = minY; y <= maxY; y++)
+            for (float y = minY * nodeHeight; y <= maxY * nodeHeight; y += nodeHeight * scanStep)
             {
-                Vector2 worldPos = GridToWorld(new Vector2Int(x, y));
+                Vector2 worldPos = new Vector2(x, y);
                 Vector2 belowPos = worldPos + Vector2.down * nodeHeight * 0.6f;
 
                 // If current position is empty and position below has ground
-                bool isEmpty = !Physics2D.OverlapCircle(worldPos, 0.1f, groundLayer);
-                bool hasGroundBelow = Physics2D.OverlapCircle(belowPos, 0.1f, groundLayer);
+                bool isEmpty = !Physics2D.OverlapCircle(worldPos, detectionRadius, groundLayer);
+                bool hasGroundBelow = Physics2D.OverlapCircle(belowPos, detectionRadius, groundLayer);
 
                 if (isEmpty && hasGroundBelow)
                 {
-                    // Add a base node
-                    nodes[new Vector2Int(x, y)] = NodeType.Base;
-                    baseNodesCreated++;
+                    // Convert to grid position
+                    Vector2Int gridPos = WorldToGrid(worldPos);
+
+                    // Only add if not already added
+                    if (!nodes.ContainsKey(gridPos))
+                    {
+                        // Add a base node
+                        nodes[gridPos] = NodeType.Base;
+                        baseNodesCreated++;
+                    }
                 }
             }
         }
@@ -177,12 +191,45 @@ public class NavigationGraph : MonoBehaviour
         Debug.Log($"Created {edgeNodesCreated} edge nodes");
     }
 
-    // Calculate the bounds of the level for graph generation
     private Bounds CalculateLevelBounds()
     {
         if (levelRoot == null)
-            return new Bounds(Vector3.zero, Vector3.one * 100); // Default large bounds
+        {
+            // If levelRoot is not set, try to find all objects in the ground layer
+            Debug.LogWarning("LevelRoot not set, attempting to find all ground objects");
+            Bounds levelBounds = new Bounds(Vector3.zero, Vector3.zero);
+            bool foundAny = false;
 
+            // Find all colliders in the ground layer
+            Collider2D[] groundColliders = Physics2D.OverlapAreaAll(
+                new Vector2(-1000, -1000),
+                new Vector2(1000, 1000),
+                groundLayer);
+
+            if (groundColliders.Length > 0)
+            {
+                levelBounds = new Bounds(groundColliders[0].bounds.center, groundColliders[0].bounds.size);
+                foundAny = true;
+
+                for (int i = 1; i < groundColliders.Length; i++)
+                {
+                    levelBounds.Encapsulate(groundColliders[i].bounds);
+                }
+            }
+
+            if (!foundAny)
+            {
+                Debug.LogError("Could not find any ground colliders! Using default bounds.");
+                return new Bounds(Vector3.zero, Vector3.one * 100);
+            }
+
+            // Expand bounds
+            //bounds.Expand(10f);
+            Debug.Log($"Level bounds: min({levelBounds.min}), max({levelBounds.max}), size({levelBounds.size})");
+            return levelBounds;
+        }
+
+        // Original implementation for when levelRoot is set
         Bounds bounds = new Bounds(levelRoot.position, Vector3.zero);
         Collider2D[] colliders = levelRoot.GetComponentsInChildren<Collider2D>();
 
@@ -203,8 +250,8 @@ public class NavigationGraph : MonoBehaviour
             }
         }
 
-        // Expand bounds a bit
-        bounds.Expand(5f);
+        // Expand bounds a bit more
+        bounds.Expand(10f);
 
         return bounds;
     }
@@ -397,15 +444,31 @@ public class NavigationGraph : MonoBehaviour
         Vector3 entityWorldPosition = new Vector3(entityWorldPos.x, entityWorldPos.y, 0);
         Debug.DrawLine(entityWorldPos, entityWorldPosition + (Vector3)(direction * 2f), Color.magenta, 0.1f);
 
+        // Check for height difference - this allows for future jump implementation
+        Vector2Int goalGridPos = WorldToGrid(goalWorldPos);
+        float heightDifference = goalGridPos.y - entityGridPos.y;
+
         // Translate direction to action
         if (direction.x > 0.1f)
         {
             // Moving right
+            // In the future, could check if we need to jump right
+            if (heightDifference > 1.0f)
+            {
+                // For now, still move right, but could be Jump in the future
+                return MovementAction.MoveRight;
+            }
             return MovementAction.MoveRight;
         }
         else if (direction.x < -0.1f)
         {
             // Moving left
+            // In the future, could check if we need to jump left
+            if (heightDifference > 1.0f)
+            {
+                // For now, still move left, but could be Jump in the future
+                return MovementAction.MoveLeft;
+            }
             return MovementAction.MoveLeft;
         }
         else

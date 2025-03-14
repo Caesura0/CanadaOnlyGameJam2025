@@ -8,6 +8,10 @@ public class NavigationManager : MonoBehaviour
     public NavigationGraph navigationGraph;
     public Transform playerTransform;
 
+    [Header("Navigation Settings")]
+    public LayerMask groundLayer;  // Define this on NavigationManager and pass to graph
+    public string levelRootName = "LevelRoot";  // Name of level root object to find
+
     [Header("Enemy Spawning")]
     public GameObject[] groundEnemyPrefabs;  // Changed from enemyPrefabs
     public GameObject[] flyingEnemyPrefabs;  // New array for flying enemies
@@ -49,7 +53,29 @@ public class NavigationManager : MonoBehaviour
 
     private void Start()
     {
-        // Find navigation graph if not set
+
+        InitializeComponents();
+
+        if (navigationGraph != null)
+        {
+            navigationGraph.ClearAndRebuild();
+            Debug.Log("Navigation graph built successfully");
+        }
+        else
+        {
+            Debug.LogError("Navigation graph is null after initialization!");
+            return;
+        }
+        // Spawn initial enemies after a delay to ensure graph is fully built
+        if (spawnEnemiesOnStart)
+        {
+            StartCoroutine(SpawnInitialEnemies());
+        }
+    }
+
+    private void InitializeComponents()
+    {
+        // Find navigation graph if not set - TIME TO GET FUCKY
         if (navigationGraph == null)
         {
             navigationGraph = FindObjectOfType<NavigationGraph>();
@@ -61,11 +87,23 @@ public class NavigationManager : MonoBehaviour
                 GameObject navGraphObj = new GameObject("NavigationGraph");
                 navigationGraph = navGraphObj.AddComponent<NavigationGraph>();
 
-                // Set some defaults
-                navigationGraph.groundLayer = LayerMask.GetMask("Ground");
-                navigationGraph.nodeSpacing = 3f;
+                // Set some defaults hacker mans style cause i don't wanna decouple on night before game jam due
+                navigationGraph.groundLayer = groundLayer;
+                navigationGraph.nodeSpacing = 2f;
+                navigationGraph.nodeHeight = 1f;
+                // Find level root if needed
+                if (navigationGraph.levelRoot == null)
+                {
+                    Transform levelRoot = GameObject.Find(levelRootName)?.transform;
+                    if (levelRoot != null)
+                        navigationGraph.levelRoot = levelRoot;
+                }
+                // Build the navigation graph
+                navigationGraph.ClearAndRebuild();
+                Debug.Log("Navigation graph built successfully");
             }
         }
+
 
         // Find player if not set
         if (playerTransform == null)
@@ -86,20 +124,6 @@ public class NavigationManager : MonoBehaviour
         {
             GameObject container = new GameObject("Enemies");
             enemyContainer = container.transform;
-        }
-
-        // Build the navigation graph
-        if (navigationGraph != null)
-        {
-            // Clear and rebuild to ensure a fresh graph
-            navigationGraph.ClearAndRebuild();
-            Debug.Log("Navigation graph built successfully");
-        }
-
-        // Spawn initial enemies after a delay to ensure graph is fully built
-        if (spawnEnemiesOnStart)
-        {
-            StartCoroutine(SpawnInitialEnemies());
         }
     }
 

@@ -182,7 +182,7 @@ public class BearEnemyController : EnemyBaseController
 
         // Flip sprite to face target
         if ((facingDirection > 0 && !isFacingRight) || (facingDirection < 0 && isFacingRight))
-            FlipSprite();
+            FlipSpriteDirectly(isFacingRight);
 
         // Play charge animation
         if (animator != null)
@@ -355,10 +355,10 @@ public class BearEnemyController : EnemyBaseController
     }
 
     // Override DoFlip to update our facing direction
-    protected override void DoFlip(bool toFaceRight)
+    protected override void FlipSpriteDirectly(bool toFaceRight)
     {
         // Call base DoFlip method
-        base.DoFlip(toFaceRight);
+        base.FlipSpriteDirectly(toFaceRight);
 
         // Update our local tracking variable
         isFacingRight = facingRight;
