@@ -49,8 +49,8 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 64
-  nodeSpacing: 2
-  nodeHeight: 2
-  coverageRadius: 30
+  nodeSpacing: 3
+  nodeHeight: 1
+  coverageRadius: 60
   visualizeGraph: 1
   visualizePaths: 1
